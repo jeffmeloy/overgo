@@ -406,11 +406,11 @@
         "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (every session's prompt writes or removes the one stop_request file, and stop words are matched by containment). Filed as stop-request-session."
       },
       "SQA-488": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "ternary-veto/do"
         ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid (a nested ternary is counted within one physical line, so a line break passes the same expression; three refused landings, moss-page/pictures among them). Filed as ternary-veto: the count leaves the veto, the ratchet's other counts stay."
+        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid (a nested ternary is counted within one physical line, so a line break passes the same expression; three refused landings, moss-page/pictures among them). Filed as ternary-veto: the count leaves the veto, the ratchet's other counts stay. Implemented 2026-11-25 by ternary-veto/do, the landing that carries this answer: the review ratchet counts no nested ternary (TestTheReviewRatchetCountsNoNestedTernary), for the review's recheck."
       }
     }
   },

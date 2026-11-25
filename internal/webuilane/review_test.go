@@ -1,12 +1,15 @@
 package webuilane
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestReviewMeasures pins each criterion on a synthetic source: a swallow
@@ -42,7 +45,7 @@ setTimeout(tick, 1000); setInterval(poll, interval);
 `
 	review := ReviewMeasures(source)
 	// four and eleven carry only a placeholder, which names nothing.
-	want := Review{SilentFallbacks: 2, WindowDialogs: 2, UnnamedControls: 4, UnnamedButtons: 1, InlineStyles: 1, NestedTernaries: 1, TimerLiterals: 1, DebtMarkers: 1}
+	want := Review{SilentFallbacks: 2, WindowDialogs: 2, UnnamedControls: 4, UnnamedButtons: 1, InlineStyles: 1, TimerLiterals: 1, DebtMarkers: 1}
 	if review != want {
 		t.Fatalf("review = %+v, want %+v", review, want)
 	}
@@ -61,7 +64,7 @@ setTimeout(tick, 1000); setInterval(poll, interval);
 // measured value when the census landed (webui-quality-census); they only tighten.
 var webuiReviewCeiling = Review{
 	SilentFallbacks: 0, WindowDialogs: 0, UnnamedControls: 0, UnnamedButtons: 0,
-	InlineStyles: 0, NestedTernaries: 0, TimerLiterals: 0, DebtMarkers: 0,
+	InlineStyles: 0, TimerLiterals: 0, DebtMarkers: 0,
 }
 
 // clientJavaScript returns every JavaScript source of the served client by its path under the client's directory.
@@ -92,9 +95,23 @@ func clientJavaScript(t *testing.T) map[string]string {
 	return sources
 }
 
+// TestTheReviewRatchetCountsNoNestedTernary holds ternary-veto/do (SQA-488): the review ratchet counts no nested
+// ternary. A fixture holding one on one line reviews to no such count, and the ratchet's report names none. The count
+// read a nested ternary only within one physical line, so a line break after the outer question mark passed the same
+// expression; it refused moss-sharpened-pair/do, moss-sharpened-pair/page and moss-page/pictures, whose other counts
+// were zero, each cured by reflowing or naming the inner choice. A count a line break defeats is no rule, and
+// readability stays with review.
+func TestTheReviewRatchetCountsNoNestedTernary(t *testing.T) {
+	t.Parallel()
+	reported := testcheck.Must(json.Marshal(ReviewMeasures("const nested = a ? b ? 1 : 2 : 3;\n")))(t)
+	if strings.Contains(string(reported), "ternar") {
+		t.Errorf("the review of a nested ternary reports %s; want no count of it", reported)
+	}
+}
+
 // TestWebUIReviewRatchet holds the client to the review criteria at their
 // measured values: a source that adds a silent fallback, a dialog, an
-// unnamed control, inline styling, a nested ternary, a timer literal or a
+// unnamed control, inline styling, a timer literal or a
 // debt marker fails here, and each ceiling only tightens as rows pay it.
 func TestWebUIReviewRatchet(t *testing.T) {
 	t.Parallel()
@@ -117,7 +134,6 @@ func TestWebUIReviewRatchet(t *testing.T) {
 		{"unnamed controls", review.UnnamedControls, webuiReviewCeiling.UnnamedControls},
 		{"unnamed buttons", review.UnnamedButtons, webuiReviewCeiling.UnnamedButtons},
 		{"inline styles", review.InlineStyles, webuiReviewCeiling.InlineStyles},
-		{"nested ternaries", review.NestedTernaries, webuiReviewCeiling.NestedTernaries},
 		{"timer literals", review.TimerLiterals, webuiReviewCeiling.TimerLiterals},
 		{"debt markers", review.DebtMarkers, webuiReviewCeiling.DebtMarkers},
 	} {

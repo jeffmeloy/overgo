@@ -11,15 +11,14 @@ import (
 // Review is the client review criteria measured over JavaScript source
 // (owner rule 2026-09-06: review concepts are owned as measures with
 // ratchets, never as rule prose): silent failures, dialogs that leave the
-// page, controls without an accessible name, inline styling, nested
-// conditionals, timer literals and debt markers.
+// page, controls without an accessible name, inline styling,
+// timer literals and debt markers.
 type Review struct {
 	SilentFallbacks int `json:"silent_fallbacks"` // .catch swallowing to null/{}/[]/false without a reviewed comment after it
 	WindowDialogs   int `json:"window_dialogs"`   // alert/confirm/prompt calls
 	UnnamedControls int `json:"unnamed_controls"` // el("input"/"select"/"textarea") without aria-label, a file/checkbox/hidden type or a wrapping label on the line (a placeholder is not a name)
 	UnnamedButtons  int `json:"unnamed_buttons"`  // el("button", {...}) closed on its attributes without text, aria-label, title or a child
 	InlineStyles    int `json:"inline_styles"`    // style: "..." attributes in el() calls
-	NestedTernaries int `json:"nested_ternaries"` // a ternary inside a ternary's branch on one line
 	TimerLiterals   int `json:"timer_literals"`   // setTimeout/setInterval with a numeric literal
 	DebtMarkers     int `json:"debt_markers"`     // TODO/FIXME/HACK/XXX
 }
@@ -85,7 +84,6 @@ func ReviewMeasures(source string) Review {
 			}
 		}
 	}
-	review.NestedTernaries = nestedTernaries(code)
 	return review
 }
 
@@ -192,28 +190,6 @@ func buttonNamed(call []jsToken) bool {
 	return false
 }
 
-// nestedTernaries counts, line by line, a ternary opened inside another's
-// branch before either's colon.
-func nestedTernaries(code []jsToken) (count int) {
-	var open, nested bool
-	var line int
-	for _, token := range code {
-		if token.line != line {
-			open, nested, line = false, false, token.line
-		}
-		switch {
-		case token.is(jsPunctuator, "?"):
-			nested, open = open, true
-		case token.is(jsPunctuator, ":") && open:
-			if nested {
-				count++
-			}
-			open, nested = false, false
-		}
-	}
-	return count
-}
-
 // Add sums another source's measures into this review.
 func (review *Review) Add(other Review) {
 	review.SilentFallbacks += other.SilentFallbacks
@@ -221,7 +197,6 @@ func (review *Review) Add(other Review) {
 	review.UnnamedControls += other.UnnamedControls
 	review.UnnamedButtons += other.UnnamedButtons
 	review.InlineStyles += other.InlineStyles
-	review.NestedTernaries += other.NestedTernaries
 	review.TimerLiterals += other.TimerLiterals
 	review.DebtMarkers += other.DebtMarkers
 }

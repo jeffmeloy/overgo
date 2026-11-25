@@ -73,21 +73,6 @@
       ]
     },
     {
-      "id": "ternary-veto",
-      "title": "The review ratchet vetoes what a reader cannot see past, not a nested ternary a line break hides",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The nested-ternary count leaves the landing's veto",
-          "verify": "go test ./internal/webuilane -count=1 -run '^TestTheReviewRatchetCountsNoNestedTernary$'",
-          "files": [
-            "internal/webuilane"
-          ],
-          "rationale": "SQA-488, checked against the code at 30691fc67: valid. The review ratchet (internal/webuilane review_test.go) counts a nested ternary only within one physical line, so a line break after the outer question mark passes the same expression; it refused three landings (moss-sharpened-pair/do, moss-sharpened-pair/page, moss-page/pictures) whose other counts were zero, each cured by reflowing or naming the inner choice. A count a line break defeats is no rule. The change: removing the nested-ternary counter, its ceiling and its fixture expectation; readability stays with review, and the ratchet's other counts stand. Check: TestTheReviewRatchetCountsNoNestedTernary reviews a fixture holding a one-line nested ternary and finds the ratchet's report holds no such count. It does not exist at the base, so the check fails there."
-        }
-      ]
-    },
-    {
       "id": "style-vetoes",
       "title": "The landing vetoes no form a reviewer can judge whose rewrite changes behaviour or whose wording is right",
       "steps": [

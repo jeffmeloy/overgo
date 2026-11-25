@@ -19,24 +19,6 @@
       ]
     },
     {
-      "id": "moss-pictures",
-      "title": "A picture chosen on the MOSS page is the one read, sent and previewed",
-      "steps": [
-        {
-          "id": "stale-preview",
-          "title": "A MOSS depth preview shows only the map of the picture chosen now",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserDepthPreview$' -leg depth-preview-current",
-          "files": [
-            "internal/server"
-          ],
-          "rationale": "SQA-493 (P2), checked against depthPreview (internal/server/webui/mod/generation.js) at b0dc71f35: valid from source. The preview posts the form as the press found it and shows the answer whatever the form holds when it comes. offer hides the preview only when no picture is chosen, so A's map stays shown beside a B the run will read. The change: a change to the inputs the map is made from clears the map, and an answer is shown only while the form still asks what it was made for. The estimate still runs only on a press. Check: TestWebUIBrowserDepthPreview, extended to hold A's answer, choose B, let A's answer come, and find A's map never shown and no second estimate begun, recorded as the leg depth-preview-current. The leg is new, so the check fails at the base.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "microphone-wait",
       "title": "The microphone journey stops recording only once its source has played to its end",
       "steps": [

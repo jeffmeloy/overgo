@@ -100,4 +100,40 @@ func TestWebUIBrowserDepthPreview(t *testing.T) {
 	}
 	check(`window.overgo.errors.length===0`)
 	webuilane.Leg(t, "depth-preview", "MOSS's generation page offers a depth preview beside its depth control and shows the picture the workspace stored of the page's request.")
+
+	// A map shows only the picture chosen now (moss-pictures/stale-preview, SQA-493): another picture chosen clears the
+	// map shown, and a map asked for one picture whose answer comes after another is chosen is never shown; the change
+	// alone begins no estimate. Picture A's map had stayed beside a picture B the run reads.
+	second := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, []byte("a second picture")))(t)
+	third := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, []byte("a third picture")))(t)
+	check(`(() => {
+  const panel=document.querySelector('#panel-generation');
+  window.choosePicture=(id)=>{
+    const slot=[...panel.querySelectorAll('fieldset[data-control="control"] label.control')].find(label=>label.querySelector('span').textContent==='picture').querySelector('input');
+    slot.value=id; slot.dispatchEvent(new Event('change',{bubbles:true}));
+  };
+  window.previewButton=[...panel.querySelectorAll('button')].find(button=>button.textContent==='Preview depth map');
+  choosePicture('` + second.String() + `');
+  return true;
+})()`)
+	settle(`!document.querySelector('#panel-generation .depth-preview img')`)
+	check(`(() => {
+  window.previewHeld=new Promise(resolve=>{ window.releasePreview=resolve; });
+  const original=window.fetch;
+  window.fetch=function (path) { const answer=original.apply(this, arguments); return typeof path==='string' && path.startsWith('/generation/preview') ? window.previewHeld.then(()=>answer) : answer; };
+  previewButton.click();
+  choosePicture('` + third.String() + `');
+  window.releasePreview();
+  return true;
+})()`)
+	settle(`!window.previewButton.disabled`)
+	check(`!document.querySelector('#panel-generation .depth-preview img')`)
+	fixture.mu.Lock()
+	previewed = append([]string(nil), fixture.previewed...)
+	fixture.mu.Unlock()
+	if len(previewed) != 2 || !bytes.Contains([]byte(previewed[1]), []byte(`"picture":"`+second.String()+`"`)) {
+		t.Fatalf("the page asked the preview %q; want the first picture's and the second's, and no estimate begun by a change alone", previewed)
+	}
+	check(`window.overgo.errors.length===0`)
+	webuilane.Leg(t, "depth-preview-current", "A depth map shows only the picture chosen now: another picture chosen clears it, and an answer for a picture no longer chosen is never shown.")
 }

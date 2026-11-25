@@ -5,18 +5,29 @@
 
   // depthPreview: a depth section's map as its run makes it, as the MOSS Ultra workflow's PreviewImage shows it, before
   // any run; offered while the page shows a depth control whose picture is chosen, the one the map is made from
-  // (moss-page/faults). The estimate runs once per press, never again on its own.
+  // (moss-page/faults). The estimate runs once per press, never again on its own. A map is shown only while the form
+  // still asks what it was made from, the control's picture and the request's size: a change to them clears it, and an
+  // answer that comes after one is not shown (SQA-493: picture A's map had stayed beside a picture B the run reads).
   function depthPreview(host, composed, overgo) {
     const { el, api } = overgo;
     const shown = el("div", { class: "depth-preview" });
     const open = el("button", { class: "btn alt", type: "button", text: "Preview depth map" });
+    const madeFrom = () => {
+      const asked = composed().input || {};
+      return JSON.stringify([(asked.control || {}).picture || "", asked.width || 0, asked.height || 0, asked.canvas || null]);
+    };
+    let showing = null;
     open.addEventListener("click", async () => {
       open.disabled = true;
+      const asked = madeFrom();
+      showing = asked;
       shown.replaceChildren(el("div", { class: "note", role: "status", text: "Estimating depth…" }));
       try {
         const preview = await api.post("/generation/preview", { ...composed(), position: 0, limit: 1 });
-        shown.replaceChildren(el("img", { src: overgo.contentURL(preview.output), alt: "Depth map", class: "depth-preview-image" }));
-      } catch (err) { shown.replaceChildren(overgo.failure(err)); } finally { open.disabled = false; }
+        if (madeFrom() === asked) shown.replaceChildren(el("img", { src: overgo.contentURL(preview.output), alt: "Depth map", class: "depth-preview-image" }));
+      } catch (err) {
+        if (madeFrom() === asked) shown.replaceChildren(overgo.failure(err));
+      } finally { open.disabled = false; }
     });
     host.replaceChildren(el("div", { class: "row" }, open), shown);
     const panel = host.parentElement;
@@ -27,6 +38,10 @@
       const control = panel.querySelector('fieldset[data-control="control"]');
       const hide = !control || !!control.closest("[hidden]") || !picked(control);
       if (host.hidden !== hide) host.hidden = hide;
+      if (showing !== null && madeFrom() !== showing) {
+        showing = null;
+        shown.replaceChildren();
+      }
     };
     new MutationObserver(offer).observe(panel, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
     for (const name of ["input", "change"]) panel.addEventListener(name, offer);

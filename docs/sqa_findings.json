@@ -1,9 +1,9 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I agree with master putting moss-close/run first. I would accept the close from the scorecard published for that run and generate the README from the same record (SQA-474). The latest local publication I found is for 5c9092545, before served-parts/clock. Its five numeric image rows already satisfy the shape the close looks for. Completed cells with valid credit can carry forward.",
-    "Of the rules I would remove, the verifier’s veto on shell assignments comes first (SQA-483). It stopped full-measurement/run after nine hours of measurement. The CUDA header line limit also stopped a MOSS repair (SQA-500). Moving that refusal earlier still requires a file split that preserves the compiled program. Master has now removed the nested-ternary veto. The shell parser, status-turn holds, sync.Once and comment punctuation already have plan steps.",
-    "I would settle which bytes a landing may publish before broadening reuse of checks (SQA-494). The remaining picture-selection defect can send a full draw to the wrong input (SQA-492). The filename veto on three test fakes (SQA-501) can go when master next touches the duplication check."
+    "I agree with keeping moss-close/run first. Its run at dcf609ad6 passed preflight in 14m07s and the MOSS generation checkpoint in 5m39s. I would let that run finish and use its phase verdicts and exact scorecard for the close (SQA-474). Five image times are already present in the November 24 publication, before this run began.",
+    "I would address retry credit at the same measurement boundary (SQA-502). The closing launcher runs four phases itself. The existing cycle passes the execution identity and completed-cell record that a retry needs. Reusing that owner for the full campaign scope would remove the duplicate startup procedure. The recorded run has shown no repeated cell.",
+    "While the card is occupied, dispatch selects observed-inputs/rule. The 6da4c09e4 gate spent 23m16s in lanes. I would verify which bytes the landing publishes (SQA-494) and which inputs child processes read before reusing those passes. I would keep flashnext-memory/cause for a quiet machine. SQA-492 remains the highest product fix because the wrong picture can consume a full draw."
   ],
   "branch": "master",
   "findings": [
@@ -18,25 +18,26 @@
         "docs/plan.json",
         "cmd/validate/main.go",
         "cmd/validate/scorecard.go",
-        "cmd/validate/readme.go"
+        "cmd/validate/readme.go",
+        "internal/scorecard/record.go"
       ],
-      "input": "Keep five numeric image rows in the store and an earlier published scorecard with a numeric MOSS row. Check moss-close/run before its closing cycle publishes. For recovery, start a second cycle at a commit with an earlier publication and let a required lane fail before the second cycle publishes.",
-      "expected": "Accept the campaign close and write its README from the same completed publication for the intended measurement commit and obligations. On a failed cycle, return the error and retain its completed cells for retry. The existing cycle and publication owners can supply that evidence to moss-close/run and own-record/do.",
-      "actual": "At 70394cb96 the close counts five image rows from a live store view. writeScorecard in display mode returns before reading HEAD or publishing. writeReadme independently selects the newest published record. The latest retained publication, 5c9092545, already has numeric times for all five models, and the committed README shows MOSS at 65.3 s. Neither check binds those data to the closing cycle. On same-commit recovery, improvement.Measure can return another cycle’s record after a lane error, then Improve calls Fill and clears the retry state. Both acceptance failures follow from source. No premature campaign close or loss of retry state was observed."
+      "input": "While a cycle at commit C is running its lanes, independently publish a scorecard for C to the same store on a later clock second. Let the cycle fail a required lane before it publishes. Separately, check moss-close/run with five numeric image rows already present and an older publication carrying a numeric MOSS row.",
+      "expected": "Use the specific publication produced or explicitly credited by this cycle. A failed lane returns its error with completed cells kept for retry. For moss-close/run, match the intended commit and required phase outcomes and render the README from that publication. The existing publisher already returns its path.",
+      "actual": "c21345fd7 fixes the earlier-record case when the directory stays unchanged. Measure still treats a growing record count as proof it published and returns the newest record at C. A separate validate -scorecard -publish can grow the directory without this cycle’s lock. Improve then files the other record’s gaps and Fill clears retry state despite the lane error. The close itself counts live rows and writeReadme takes the newest publication. The retained 5c9092545 record already has all five numeric image rows. These are source counterexamples. No wrong close or lost credit was observed."
     },
     {
-      "id": "SQA-483",
+      "id": "SQA-502",
       "severity": "P2",
       "files": [
-        "internal/runrecord/verify_command.go",
-        "internal/planverify/verify.go",
-        "internal/landing/form.go",
-        "cmd/plan/main.go",
-        "cmd/plan/check_form_test.go"
+        "docs/plan.json",
+        "cmd/loop/improve.go",
+        "cmd/validate/run.go",
+        "cmd/validate/cell_credit.go",
+        "cmd/validate/cell_credit_test.go"
       ],
-      "input": "Give the plan the original full-measurement/run check from 5147c611f's parent. It saves the scorecard output in a shell variable and then checks each required model row and the generated README.",
-      "expected": "Remove the assignment-only refusal for a verifier that captures a command’s output and asserts on it. Use the shell’s exit status for the composite command and keep the existing checks for missing tests and unproven cache credit. check-form-reads/do already owns this. An absent model row must still fail the verifier.",
-      "actual": "Git Bash accepted the exact recorded command in syntax-only mode. ParseVerify splits at the opening parenthesis, consumes the assignment prefix and reports that the segment runs nothing. The landing refusal and commit 8e62553db record that this stopped full-measurement/run after nine hours of measurement. Commit 5147c611f rewrote the check before the step landed. The filing check now gives the same refusal earlier. The nine hours elapsed before the refusal. The record shows a verifier rewrite and a separate landing."
+      "input": "Start the MOSS closing measurement from the retained November 25 launcher with no inherited cycle-credit path or linked execution identity. Let the selected MOSS image-proof cell finish, interrupt before the next cell finishes, then resume the same measurement at dcf609ad6 with identical inputs and store.",
+      "expected": "On retry, skip the completed cell under its existing identity and run the unfinished cell. Have the full close use the cycle’s existing credit, execution identity and phase runner with the full selection the campaign requires. Keep fresh measurements separate from retries.",
+      "actual": "The retained launcher invokes four validate phases directly and supplies neither a cycle-credit path nor a linked execution identity. With that environment, cycleCellCredit opens an empty-path record and add returns without writing. For runnable cells, consumedFiles also returns a fresh random identifier when execution identity is absent. A restarted cells phase therefore launches the completed image proof again. The loop’s measurePhases and validateTo already pass both inputs. The launcher and its passing preflight are observed. The interruption and repeated acquisition follow from source."
     },
     {
       "id": "SQA-494",
@@ -91,17 +92,19 @@
       "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
     },
     {
-      "id": "SQA-500",
+      "id": "SQA-503",
       "severity": "P2",
       "files": [
-        "internal/landing/rules.go",
-        "internal/landing/rules_test.go",
-        "internal/landing/refusal.go",
-        "cmd/kernel-manifest/split_test.go"
+        "cmd/validate/main.go",
+        "cmd/validate/scorecard.go",
+        "cmd/validate/bound_records.go",
+        "cmd/validate/projection_proof.go",
+        "cmd/validate/training_proof.go",
+        "cmd/validate/only_model_test.go"
       ],
-      "input": "Append a single comment to an ops_f32_*.cuh family header containing 2,000 newline-terminated lines. Keep every kernel, declaration, include and compiler input option the same.",
-      "expected": "Remove overlongFamilies, its 2,000-line threshold, its refusal classifier entry and its threshold-only test. Keep the manifest and compiled-artifact checks, the include-once test and the affected numerical checks. A reviewer can request a split when a second kernel family actually needs its own file.",
-      "actual": "At 70394cb96 the rules stage counts newline bytes. Its own fixture accepts 2,000 comment lines and requires a refusal at 2,001. The refusal log names moss-checkpoint-regression/do at 2,065 lines. Commit 94515cfc8 records that the old gate refused it after a 12-minute card check and moved the same veto earlier. The current gate still requires moving kernels to another header and including it immediately afterward, expressly to keep PTX unchanged."
+      "input": "Request the dry-run plan for -model MOSS-Image-SFT-797fa8e678b4f -validation image-proof with an otherwise usable store and MOSS inputs. Make only docs/verification/fixtures/qwen27/suite.json unavailable in the supplied root. That Qwen projection suite is outside the selected MOSS operation.",
+      "expected": "Return the MOSS image-proof plan. Resolve the named model and validation before binding inputs, and load training or projection fixtures only for selected proofs that consume them. A selected Qwen projection with a missing required suite should still be refused.",
+      "actual": "At c21345fd7, runArgs calls chosenThenBound before modelNamed and OnlyModel. bindCells calls groundProjection on the registered set. groundProjection reads the Qwen suite before it examines any cell and returns its file error. The MOSS plan never reaches selection. The one-model case checks the filtered plan and uses the full repository for its CLI check. This refusal is demonstrated by the call order. No model was run."
     },
     {
       "id": "SQA-388",
@@ -120,97 +123,13 @@
       "severity": "P2",
       "files": [
         "cmd/loophook/main.go",
+        "cmd/loophook/sessions_test.go",
         "internal/plan/stop_request.go",
-        "cmd/plan/dispatch.go",
-        "internal/plan/stop_request_test.go",
-        "cmd/loophook/stop_passed_test.go"
+        "cmd/plan/dispatch.go"
       ],
-      "input": "The owner tells the lead to pause the campaign. Before the lead records the requested stop, a second session in the same checkout asks for progress. The lead still owns the worktree and has the same stop request.",
-      "expected": "Honor the owner's explicit request in the session that received it. Remove the rule that the most recent prompt anywhere in the checkout must contain a stop word. Keep the existing scoped stop record and explicit owner authorization. A progress request in a different chat should neither grant nor revoke that authorization.",
-      "actual": "Source counterexample at 30691fc67. runPrompt calls NoteStopRequest before checking who holds the worktree or whether the session is a reviewer. Both sessions write or remove the same stop_request file. The progress question removes it, so RequireStopRequest refuses the lead's authorized pause before RecordStop. Conversely, the word test accepts “don't stop” as evidence for a later requested pause. The words alone never pause a run. The existing checks exercise successive prompts in one session. No missed or unauthorized pause was observed in this review."
-    },
-    {
-      "id": "SQA-491",
-      "severity": "P2",
-      "files": [
-        "cmd/loophook/main.go",
-        "cmd/loophook/plan_rides_test.go",
-        "internal/plan/findings_fall_through.go",
-        "internal/landing/scope.go"
-      ],
-      "input": "Master starts a typed status-only turn in a clean checkout with an open plan. Before it answers, SQA edits only docs/sqa_findings.json. Master has made no edit. No landing, recorded stop or policy decision is pending.",
-      "expected": "Let master finish its answer. Exclude the findings register from the stop hook's abandoned-work check alongside the plan, using plan.FindingsRegister. The next implementation landing already carries both files. Extend the existing plan_rides case so that a register edit alone passes and a source edit beside it still blocks.",
-      "actual": "Source counterexample at b1d6e237a. turnCreatedDirt compares checkout snapshots and exempts only plan.Path. The new register edit therefore makes stopDecision return stopOrphan. On its first stop the hook exits 2 and tells master to land or revert the reviewer's work. An unchanged retry can pass. commitScope explicitly includes the register in the next landing. This review did not observe a blocked session."
-    },
-    {
-      "id": "SQA-490",
-      "severity": "P2",
-      "files": [
-        "skill.md",
-        "cmd/loophook/main.go",
-        "cmd/loophook/owner_turn_test.go",
-        "internal/plan/dispatch.go",
-        "internal/plan/decision_dispatch_test.go"
-      ],
-      "input": "In the implementing chat, ask for a status answer only and explicitly end the turn there. The checkout is clean, no landing is running, and the only remaining row needs the lead's decision about a standing rule. The campaign itself has no recorded pause.",
-      "expected": "Let the lead answer the question and end that turn. Keep the pending decision visible for the next implementation turn. Dispatch and landing already hold the affected row until the lead answers. Remove the requirement to decide unrelated policy before returning a status answer. Ordinary implementation turns should still take the authorized decision without waiting for the owner.",
-      "actual": "Source counterexample at db04fec59. stopDecision permits the clean, typed turn to end. Before using that verdict, runStop calls answerHold. A nonempty Dispatch.Answer makes the hook return exit 2 and tell the lead to answer the decision now. The unchanged-state retry can subsequently let the turn end. The eight-hour capacity-record-history wait recorded in 528f40b3f preceded this hook change. The current refusal follows from the call order and the existing owner-turn cases. No repeat of the eight-hour wait was observed."
-    },
-    {
-      "id": "SQA-482",
-      "severity": "P2",
-      "files": [
-        "cmd/plan/main.go",
-        "cmd/plan/check_form_test.go",
-        "internal/plan/plan.go",
-        "internal/landing/landing.go",
-        "internal/landing/terms_test.go",
-        "docs/plan.json"
-      ],
-      "input": "File a step with the literal command false because its test will be written with the implementation. Try to land the finished work under the original step ID.",
-      "expected": "File the command that will exercise the promised behavior. It can name a test the change will add. Replace acceptance of the literal false placeholder in the existing filing check, and correct already filed placeholders through the existing plan edit. Keep the original behavioral check binding when the code lands.",
-      "actual": "The filing check accepts false, and landing uses the committed step's verifier. Every implementation of that step therefore fails the same check. Master retired measured-names-first/do, contended-credit/do and user-size-inapplicable/do and landed the work under new step IDs (7d966c021, a25fa2246 and 7c6bef92f). No open step at 5f5d4db92 carries false. The filing check still accepts it for future steps."
-    },
-    {
-      "id": "SQA-498",
-      "severity": "P2",
-      "files": [
-        "internal/landing/rules.go",
-        "internal/landing/refusal.go",
-        "internal/landing/rules_test.go",
-        "internal/landing/refusal_rule_test.go"
-      ],
-      "input": "Add a sync.Once to protect a one-time operation. For a case where the suggested rewrite changes behavior, let the first call panic, recover at its caller, then call Do again on the same instance.",
-      "expected": "Remove the sync.Once selector from the landing veto and its refusal classifier and fixture expectation. Let the caller choose the primitive that preserves its retry and panic behavior. Keep the behavior check for the operation it protects.",
-      "actual": "The retained log records sync.Once rules refusals for waiter-bound/do, moss-first-run/quiet and idle-wait/do. At 39ffd57e1 legacyFormCounts counts the selector without inspecting the callback. In the source counterexample, a later Once.Do returns after the recovered panic. The recommended OnceFunc panics again on every call. The installed Go implementation defines both behaviors. The refusals were observed. No panic regression or lost wall time was measured."
-    },
-    {
-      "id": "SQA-499",
-      "severity": "P2",
-      "files": [
-        "internal/repoanalysis/style.go",
-        "internal/repoanalysis/style_test.go",
-        "internal/landing/rules.go",
-        "internal/capabilityruntime/runtime.go",
-        "skill.md"
-      ],
-      "input": "Give Unwrap the first comment line “Unwrap returns fs.ErrNotExist.” Add a blank line and an indented Go example whose last line is errors.Is(err, fs.ErrNotExist). The comment ends with the closing parenthesis of the call.",
-      "expected": "Remove the name-and-terminal-period test as a reason to refuse a landing. Keep documentation of the error contract and let review judge its wording. The usage example should remain valid Go as printed. A punctuation change should have no bearing on acceptance of the method.",
-      "actual": "At 39ffd57e1 validDoc checks the last character of the entire comment, although skill.md describes the first line. The documented example fails, while the same method with only its first sentence passes. Eight retained rules refusals name export-doc, including served-answers/absent for Error and Unwrap. The count establishes that the rule blocked landings. The example is source-demonstrated and the logs do not identify it as the cause of all eight."
-    },
-    {
-      "id": "SQA-501",
-      "severity": "P2",
-      "files": [
-        "internal/repoanalysis/production_repeats_test.go",
-        "internal/repoanalysis/test_repeats_test.go",
-        "internal/server/loop_status_test.go",
-        "internal/server/memory_tiers_test.go",
-        "internal/modeldevice/expert_residency_test.go"
-      ],
-      "input": "Move only fakeLoop.LoopStatus, with its existing locked read and return value, into another in-package server test file. Keep both server fakes, the modeldevice fake and every assertion equivalent. The three methods still read distinct types under their own locks.",
-      "expected": "Remove the cross-package test-body veto for this parameterized shape, its exact filename exception and the requirement that the exception continue to match. Judge shared fixtures where the tests can actually share an implementation. Keep the tests for loop status and device memory with their respective owners.",
-      "actual": "Source counterexample at 70394cb96. The duplication subtest compares each three-body group’s sorted filenames to testParameterHeld. Moving the method makes it report both a new forbidden group and a missing required group. Eliminating one of the three copies also fails the missing-group check. The exception itself documents why these typed lock-and-read fakes do not share a helper. No failed landing was observed for this example."
+      "input": "A named lead holds the worktree and has asked to pause. Before its stop is recorded, the prompt hook receives a progress question without a session_id. The harness’s nameless-hook path is covered in sessions_test.go.",
+      "expected": "Preserve the holder’s pending stop request. Only a prompt attributable to the holding session should change its authorization. A nameless hook may still take its existing shared turn snapshot.",
+      "actual": "be631dfc3 fixes the named reviewer and visitor cases and the direct negation “don’t stop.” With no session_id, holdWorktree returns an empty string before reading the holder. beginTurn treats that value as permission to call NoteStopRequest, which removes the lead’s request on the progress prompt. RequireStopRequest then refuses the authorized pause. This residual case follows from source. No missed pause was observed."
     },
     {
       "id": "SQA-283",
@@ -279,33 +198,19 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-25",
-    "head": "dbe87e8bdb2517a78ffbf75e7628475df05f0796",
+    "head": "c21345fd7b610f8c7f74526091347836eb609ff9",
     "findings": {
-      "SQA-501": {
+      "SQA-503": {
         "action": "declined",
         "rows": [],
-        "note": "Answered by the lead on 2026-11-25 at dbe87e8bd: valid from source (the test-body repeats veto matches its exception by exact filenames, so moving fakeLoop.LoopStatus to another server test file reports a new group and a missing one); no failed landing observed. Declined: the veto earned its keep the same night, refusing runner-from-commit's three copies of one build closure, which folded into one helper, and its exception breaks only where someone moves these three typed fakes. A landing it refuses for that makes it a step."
+        "note": "Answered by the lead on 2026-11-25 at c21345fd7: valid from the call order (runArgs binds every proof's inputs, the Qwen projection suite among them, before it narrows to the named model, so a missing Qwen suite refuses a MOSS-only dry run); not observed, as the suite is there and no run was refused. Declined under the owner's severity rule (P2 = a served defect on observed evidence or a check that passes without checking): a refusal of a tool on a file the repository holds, which a run it refuses makes a step."
       },
-      "SQA-500": {
-        "action": "implemented",
+      "SQA-502": {
+        "action": "filed",
         "rows": [
-          "style-vetoes/overlong"
+          "close-launcher/do"
         ],
-        "note": "Answered by the lead on 2026-11-25 at dbe87e8bd: valid from source and observed (the rules stage refuses a kernel family header over 2,000 lines; it refused moss-checkpoint-regression/do at 2,065 after a 12-minute card check, cured by moving kernels to a header included right after, the PTX unchanged). Filed as style-vetoes/overlong, beside the other vetoes of form. Implemented 2026-11-25 by style-vetoes/overlong, the landing that carries this answer (TestTheRulesStageCountsNoHeaderLength), for the review's recheck."
-      },
-      "SQA-499": {
-        "action": "implemented",
-        "rows": [
-          "style-vetoes/doc-period"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (validDoc requires the whole comment to end with a period where skill.md describes its first line, so a comment closing with an indented example is refused; eight rules refusals name export-doc). Filed as style-vetoes/doc-period, beside ternary-veto: the comment is held to begin with its name. Implemented 2026-11-25 by style-vetoes/doc-period, the landing that carries this answer (TestAnExportedCommentMayEndWithItsExample), for the review's recheck."
-      },
-      "SQA-498": {
-        "action": "implemented",
-        "rows": [
-          "style-vetoes/once"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at a30831fd6: valid from source and observed (the rules stage refuses every sync.Once for OnceFunc or OnceValue, which panic again on every call after a recovered panic where a later Once.Do returns; it refused waiter-bound/do, moss-first-run/quiet and idle-wait/do). Filed as style-vetoes/once, beside ternary-veto: the count leaves the rules stage. Implemented 2026-11-25 by style-vetoes/once, the landing that carries this answer (TestTheRulesStageCountsNoSyncOnce), for the review's recheck."
+        "note": "Answered by the lead on 2026-11-25 at c21345fd7: valid from source (the launcher of the closing measurement runs validate's phases with neither the cycle's credit path nor its execution identity, so a run cut short and started again measures its finished cells again); the run in progress has not been cut short. Filed as close-launcher/do after moss-close: a by-hand entry to cmd/loop's cycle phases, which a launcher outside the session calls."
       },
       "SQA-494": {
         "action": "implemented",
@@ -327,13 +232,6 @@
           "moss-pictures/output-input"
         ],
         "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (Request.ReadPictures refuses every identity that is not KindFile, so a MOSS output used as input is refused before it is read); no failed draw observed. Filed as moss-pictures/output-input, before the campaign closes. Implemented 2026-11-24 by moss-pictures/output-input (63c8edbc5), for the review's recheck."
-      },
-      "SQA-491": {
-        "action": "implemented",
-        "rows": [
-          "status-turn/do"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (turnCreatedDirt exempts only plan.Path, so a review's register edit reads as the turn's orphan); no blocked session observed. Filed with status-turn/do, noted there, as the review asks: both reach the stop hook. Implemented 2026-11-25 by status-turn/do, the landing that carries this answer: turnCreatedDirt exempts the findings register beside the plan (TestAPlanEditRidesWithTheNextLanding), for the review's recheck."
       },
       "SQA-474": {
         "action": "implemented",
@@ -377,27 +275,6 @@
         ],
         "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
       },
-      "SQA-482": {
-        "action": "implemented",
-        "rows": [
-          "check-form-reads/do"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid from source and observed (four steps filed with false, each retired and landed under another step). Filed as check-form-reads/do after moss-page, with SQA-483 as both change the filing check: verifyRefusal refuses a check that is only false and says to name the test the change will add. No open step carries false now (check-form-reads and own-record name the tests they add). Implemented 2026-11-25 by check-form-reads/do, the landing that carries this answer: verifyRefusal refuses false (TestACheckNoWorkCanPassIsRefusedWhenFiled), for the review's recheck."
-      },
-      "SQA-483": {
-        "action": "implemented",
-        "rows": [
-          "check-form-reads/do"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92: valid from source (ParseVerify refuses the segment s=$ that the shell runs as an assignment of a command's output). Filed as check-form-reads/do after moss-page: in a composite command, which the shell runs whole and no caller credits from cache, a segment of assignments alone is kept; in a plain && chain it is still refused, as there it exports nothing to the commands after it. Implemented 2026-11-25 by check-form-reads/do, the landing that carries this answer (TestAnAssignmentOfACommandsOutputRunsIt), for the review's recheck."
-      },
-      "SQA-490": {
-        "action": "implemented",
-        "rows": [
-          "status-turn/do"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (runStop calls answerHold before using stopDecision's verdict, so a clean typed status turn is held to a doctrine decision). Filed as status-turn after moss-page and overrun-every-check: the hold stays for a turn that implements. Implemented 2026-11-25 by status-turn/do, the landing that carries this answer: a typed turn that leaves nothing uncommitted ends though a decision waits (TestAStatusTurnEndsThoughADecisionWaits), for the review's recheck."
-      },
       "SQA-487": {
         "action": "implemented",
         "rows": [
@@ -407,7 +284,7 @@
       }
     }
   },
-  "next_finding_number": 502,
+  "next_finding_number": 504,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

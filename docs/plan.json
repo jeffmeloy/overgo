@@ -23,6 +23,24 @@
       ]
     },
     {
+      "id": "close-launcher",
+      "title": "A closing measurement started by hand runs through the cycle's phases, so a restart keeps the cells it finished",
+      "steps": [
+        {
+          "id": "do",
+          "title": "cmd/loop runs a full measurement by hand through measurePhases, with the cycle's credit and execution identity",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestAMeasurementByHandKeepsItsCreditAcrossARestart$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "SQA-502 (P2), checked against cmd/loop/improve.go and the launcher of 2026-11-25 at c21345fd7: valid from source. The full measurement is started outside the session, where a tool call ends at two hours, by a .cmd that runs validate's four phases directly. It gives them neither the cycle's credit path nor the execution identity the loop links (validateTo, cycleCreditEnvironment), so cycleCellCredit keeps no cell and a cell's run takes a fresh identity. A run cut short and started again would measure the cells it had finished again: hours of the card. measurePhases and validateTo, which the unattended cycle runs, already keep both. The change: cmd/loop gains an entry that runs the cycle's phases at the trunk's commit by hand (measureScorecard in the cycle checkout, the run recorded), which a launcher outside the session calls in place of validate's phases. Check: TestAMeasurementByHandKeepsItsCreditAcrossARestart runs the entry with a stand-in validate that finishes one cell and is cut short, runs it again, and finds the finished cell credited and not measured again. It does not exist at the base, so the check fails there.",
+          "depends_on": [
+            "moss-close/run"
+          ]
+        }
+      ]
+    },
+    {
       "id": "flashnext-memory",
       "title": "Flash-Next's long-context acceptance has a cause for its failure at 16:44: what its server needs against what the machine had free",
       "steps": [
@@ -36,35 +54,6 @@
             "cmd/server"
           ],
           "rationale": "The owner's review of 2026-11-24 (fifth), point 2, checked against lanes.log: valid. The lanes at 5f5d4db92 did not pass: TestFlashNextLongContextAcceptance failed in the models lane at 16:44 after 9 s, its model swap's child server ending before it was ready because the process tree reached its memory limit of 71.4 GiB, the machine's free commit at its start (processcontrol's job bound), and no step named a cause since. Whether the server needs more than the machine holds at Flash-Next's long context, or other work held the memory then, is unmeasured. The step: run the test on a quiet machine (no landing, no lanes), read its server tree's peak commit, and cure what it shows: a context the model's host commit cannot hold is bound by what the machine has, or the test waits for the memory it needs, as the card's turn waits. Check: the test passes on the quiet machine."
-        }
-      ]
-    },
-    {
-      "id": "observed-inputs",
-      "title": "A check's pass is kept while what it read is unchanged, its inputs observed, so a commit runs only the checks its change can alter",
-      "steps": [
-        {
-          "id": "rule",
-          "title": "The gate and the lanes keep a package's pass while its test binary and every file it read are unchanged by content",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAPassIsKeptWhileWhatItReadIsUnchanged$'",
-          "files": [
-            "internal/testevidence",
-            "internal/landing",
-            "cmd/validate"
-          ],
-          "rationale": "Follows observed-inputs/measure. The change: one rule for every test the gate's stages and the lanes run. A package's pass is kept, by its test binary's identity and the digests of what it read, and a later run whose binary and inputs match takes the kept pass in place of running; any input that differs runs it. Declared inputs and -count=1 go. Check: TestAPassIsKeptWhileWhatItReadIsUnchanged runs a fixture package twice and finds the second taken from the kept pass, then changes the file it reads and finds it run. It does not exist at the base, so the check fails there.\n\nNote: The cause, measured by observed-inputs/measure: go test keeps no pass of a package whose tests start a child process with its stdio unset. os/exec opens the null device for it, the test log records the relative path NUL, go test resolves it inside the package, Windows reports it modified in 2185, and cmd/go refuses an input modified under 2 s ago (errFileTooNew). All 11 host packages surveyed do so. The temporary paths a run reads lie outside the module, which go test never rechecks. So the kept pass this step keeps, keyed by the test binary and the content of what it read, takes NUL for the device it is, not a file, and leaves out what lies outside the repository's module, as go test does. Without that, no package the gate runs would be kept.\n\nNote: Corrected 2026-11-25 at b9bac4955, checked against observed-inputs/measure's readings and cmd/go.\n\nThe earlier note's last clause is wrong for the lanes. They run -count=1 because their models and references lie outside the module, which go test never rechecks (SQA-315), so a kept pass must key outside-module inputs too. Only the null device and the test's own temporary files are left out.\n\nThe rule as filed is not sound for the gate's packages. A kept pass keyed by what the test binary read cannot see what its child processes read, and every package measured starts children: all 11 surveyed open NUL. Some of those children read the repository itself: commanddoc's builds of each command, go list, git in the trunk. A change those children alone read would pass the gate on a pass kept from before it. go test's cache has the same blind spot, but it never kept a pass here (the null device), so the blind spot never mattered. A rule that can pass a change unchecked costs more than a slow commit.\n\nBefore the rule is built, the children's reads must be seen or bounded:\n- A child started in a temporary directory, a fixture's repository, reads only what the test made there. One started in the repository reads inputs its parent's log cannot name.\n- The rule may keep a pass only of a package whose tests start no child in the repository. That needs the tests' children to start through one helper, which records each child's working directory beside the test log, with a rule holding the tests' raw starts to it.\n- Otherwise the step stays unbuilt.\n\nThe row is moved after the tooling rows whose steps are sound as filed, until that design is settled and measured: how many packages start a child in the repository."
-        },
-        {
-          "id": "retire",
-          "title": "The mechanisms the kept passes make redundant go: the yield to a newer commit, the lanes' rotation and the per-package turn handover",
-          "verify": "go test ./cmd/validate ./internal/landing -count=1 -run '^TestNoLaneYieldsOrRotatesWhatAKeptPassCovers$'",
-          "files": [
-            "cmd/validate",
-            "internal/landing",
-            "cmd/loop",
-            "internal/plan"
-          ],
-          "rationale": "Follows observed-inputs/rule. With passes kept by what they read, a run at an older commit spends nothing a newer one repeats, so the run's yield to a newer commit due (plan.Yields, cmd/validate/run.go:276) goes; the lanes need no rotation to reach packages long without a pass (lanes-rotation, which this step retires unworked); and the per-package handover of the test turn (testSteps, landing.HoldTestTurnEach) stays only where a package's own run outlasts a commit's patience, which turn-priority covers. Check: TestNoLaneYieldsOrRotatesWhatAKeptPassCovers finds no yield and no rotation in a lanes run whose packages' passes are kept. It does not exist at the base, so the check fails there.\n\nNote: The lanes' rotation this step removes is lanes-order/do's order, a close's lanes least recently run first (cmd/validate leastRecentlyRunFirst), filed 2026-11-24 for the interval before this step lands. It goes with the yield, once no run spends what a newer one repeats."
         }
       ]
     },
@@ -87,22 +76,6 @@
           "depends_on": [
             "full-measurement/run"
           ]
-        }
-      ]
-    },
-    {
-      "id": "readme-liveedit",
-      "title": "The README shows what LiveEdit does: a source clip and its edit side by side at the editor's own size, with the instruction, as the other models show theirs",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The README's LiveEdit sample is a source clip and its edit at 832 x 480 side by side, the instruction stated, its time its own run's",
-          "verify": "! grep -qF 'assets/5b1c2046f691ac277efc9b08f4f6fe0f35225e021a82afc8006fedebad127d4b.gif' README.md \u0026\u0026 go test ./internal/repoanalysis ./internal/commanddoc -count=1",
-          "files": [
-            "README.md",
-            "assets"
-          ],
-          "rationale": "The owner's review of 2026-11-24 (fourth), checked against the README and the code: valid. The README's LiveEdit line links a 32 x 16 clip of 21 frames, states no instruction, shows no source clip, and says 9.5 s where the scorecard table says 10.2 s (the line's own run, not the scorecard's). The editor was trained at 832 x 480 (internal/latentvideo/edit_profiles.json source_width and source_height), and EditSourceSize (edit_form.go:103) says that at a quarter of that size it changes texture, not what the instruction asks; readme-media redid SenseNova, Un-0 and Wan and left LiveEdit. The change: a source clip at 832 x 480 (one of the VidGen clips the edit suite reads) edited by an instruction through go run ./cmd/recipe run -fresh, the source and the edit drawn side by side in one GIF, its caption naming the instruction, the seed, the frames and steps and the run's own time and memory, as the other models' samples are; the earlier clip and its file go. Check: the earlier clip is no longer linked, and the README's tests (repoanalysis, commanddoc) pass, among them TestReadmeNamesEveryModelAndItsSamples."
         }
       ]
     }

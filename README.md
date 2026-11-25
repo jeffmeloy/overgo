@@ -295,9 +295,18 @@ request the scorecard measures has the same settings: 30.0 s, 29.1 GiB.
 
 ![Self-Forcing at its developers' settings: two cats in boxing gear fight on a spotlighted stage, 81 frames at 832 by 480 in 4 steps](assets/ac25d26eaddd2097b828047aafe04ffebd87231fb87532faf36734d9ee2ef519.gif)
 
-**LiveEdit, video + instruction → video.** 21 source frames at 32 × 16 through
-four denoising steps, seed 7: 9.5 s, 3.5 GiB
-([clip](assets/5b1c2046f691ac277efc9b08f4f6fe0f35225e021a82afc8006fedebad127d4b.gif)).
+**LiveEdit, video + instruction → video.** The first 33 frames of the Wan clip
+above, at 832 × 480, the size the editor was trained at, with the instruction
+"Change the dark blue collar to a red collar.": four denoising steps of
+chunk-causal flow, seed 7, drawn on 2026-11-25 at c21345fd7 in 25 s. The source
+is on the left and the edit on the right. The editor makes the change and more:
+the collar turns red and a red coat comes with it, as the model's own code does
+when told to recolour one thing (TestServedEditMatchesTheModelsOwnEdit). Told
+instead to make it snow, to make it night or to turn it into a cartoon, it gave
+the clip back nearly as it was. The timing request the scorecard measures is
+smaller: 32 × 16, 21 frames.
+
+![LiveEdit at its own size: on the left a golden retriever runs through the surf at sunset; on the right the same clip after "Change the dark blue collar to a red collar.", the dog in a red collar and a red coat](assets/5d486644e2fe4e5c2a53a1337e6c5579ed63ba0422a24652d0ab36163168f1ec.gif)
 
 **pocket-tts, text → speech.** "Once upon a time, in a quiet valley, a small
 fox learned to sing.", voice alba: 5.4 s of 24 kHz audio in 2.6 s on the host

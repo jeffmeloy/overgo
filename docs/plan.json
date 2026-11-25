@@ -3,6 +3,83 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "card-checks-sound",
+      "title": "The MOSS golden floors are read before a section is drawn and refuse a reference of no signal, and the sharpened pair's check compares pixels",
+      "steps": [
+        {
+          "id": "floors",
+          "title": "The MOSS golden floors are declared before a section is drawn, each failed comparison is reported and its generator closed, and a reference of no signal is refused",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestUltraSectionsHoldTheirGoldenFloors$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "rationale": "SQA-410 (P2), checked against golden_floor_windows_model_test.go and decibelsOverSquares at 47b3587c9: valid. holdGoldenFloors draws every case (readGoldenCases) before it asks whether each declares a floor, so a missing declaration costs five baseline draws and five controls; a later case's size error stops the test before an earlier failure is reported or the open generator closed; each control encodes a PNG it throws away; and a reference of all zeros scores -Inf in both precision modes, which holdMergedSections accepts as equal. The change: floors are checked before any draw, a comparison's failure is reported as it is scored and its generator closed by Cleanup, a control keeps its latent alone, and decibelsOverSquares refuses a reference with no signal while agreement with a nonzero one stays +Inf. Check: the floors test itself, with card-free cases for the refusals where they need no draw.",
+          "depends_on": [
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reference-tools",
+      "title": "The workflow clock refuses a record it cannot write before it draws, and a ComfyUI recording binds each output to what made it",
+      "steps": [
+        {
+          "id": "clock",
+          "title": "The workflow clock refuses a record path that is not relative to the repository before it holds the machine or draws a section",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestTheWorkflowClockRefusesARecordItCannotWrite$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "rationale": "SQA-460 (P2), checked against readWorkflowSource and appendWorkflowTiming at 47b3587c9: valid. An absolute OVERGO_WORKFLOW_RECORD is accepted at the start and joined under the repository only when the timing is appended, after both runs, so the attempt reported in d28ab1e84 drew twelve sections (81 s measured) and saved nothing. The change: the record path is checked, relative and inside the repository, before the quiet machine is asked for. Check: TestTheWorkflowClockRefusesARecordItCannotWrite gives the source check an absolute path and one leaving the repository: each is refused before any draw.\n\nNote: SQA-477 (P2), valid from source: ownSizeReading and TestWhereAMossStepsTimeGoes divide a recording's elapsed time by its count of progress-event intervals, not by the steps between its first and last event, so a recording with a gap in its step numbers reads slow (1.113 against 1.136 s/step with one interior event dropped; node 48 of a Turbo capture records steps 1 to 8 in five events, 129.75 against 74.14 ms/step). The intact own-size recording has all 50 events, so no reading taken so far is wrong. With this step: the MOSS recording reader computes time per completed step from the first and last timestamps and their step numbers, both timing checks read it before loading the generator, and a span of fewer than two events is refused there.",
+          "depends_on": [
+            "pair-encode/clock",
+            "full-measurement/run"
+          ]
+        },
+        {
+          "id": "recorder",
+          "title": "A ComfyUI recording binds a resumed output to the prompt that made it, keeps two files of one name apart, and credits a repeat only from two prompts",
+          "verify": "go test ./cmd/comfy-reference -count=1 -run '^TestARecordingBindsEachOutputToWhatMadeIt$'",
+          "files": [
+            "cmd/comfy-reference"
+          ],
+          "rationale": "SQA-388 (P2), checked against cmd/comfy-reference/record.go at 47b3587c9: valid. record resumes a prompt on its request hash and prompt ID alone after reading the current models and commits; await starts sampling memory at a retry; keep names a file by its node and base name, so two files of one name from one node in different subfolders overwrite each other; and the paired-recording check asks each run for a prompt ID but never compares them, so one capture given twice passes as two runs. The three pairs at 89cf0f0e3 have distinct prompt IDs. The change: a resumed output keeps the producer it was recorded under and is refused when the models or commits moved; memory sampling begun on a retry says so; a kept file's name holds its subfolder; and a pair's prompt IDs differ. Check: TestARecordingBindsEachOutputToWhatMadeIt drives record against a stand-in ComfyUI for each case.",
+          "depends_on": [
+            "pair-encode/clock",
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "served-parts",
+      "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestEachServedPathSplitsItsRequestIntoParts$'",
+          "files": [
+            "internal/processmeasure",
+            "internal/capabilityruntime",
+            "internal/mediacapability",
+            "internal/latentvideo",
+            "internal/speechsynth",
+            "internal/speechrecognition",
+            "internal/inference",
+            "internal/latentimage",
+            "cmd/recipe"
+          ],
+          "rationale": "The owner's review of 2026-11-22 (second), point 3, checked against the code: partly valid. The parts ledger exists for every served path (processmeasure.Stages): the session director marks the request read, the stored answer sought, the named inputs read, the session leased and the run recorded, the workflow runtime marks each stage by its module, video marks its own (prompt rows, denoising, decoding, the clip written) and chat its load's (cmd/recipe inference_measure). But a part records its wall and the device's peak alone, speech marks none of its own, and only the MOSS workflow's clock reads a request's parts beside each one's processor time and bytes read (latentimage TestTheUltraWorkflowIsTimedInItsOrder, readProcessUse, written into that test), which is how adapter-hold's per-request hashing was found.\n\nThe change: a part records its processor time and the bytes the process read inside it (processmeasure.Part), so every ledger carries what the MOSS clock computed by hand; speech marks its parts as video does; and the recipe command's measure reports every served task's parts, not chat's load alone. The MOSS clock reads the ledger in place of its own counters.\n\nCheck: TestEachServedPathSplitsItsRequestIntoParts serves a picture, a clip, speech and a chat turn through their capabilities with stand-in sessions under a ledger: each request's parts name its load or lease, its stages and its recording, each with wall, processor time and bytes read, their walls inside the request's.\n\nNote: SQA-468 (P3) and the generator part of SQA-461 go with this step, as the parts they cost show in its ledger: the finished PNG is rebuilt with its texts by the workflow's output encoder, keptDrawn and the workspace's OutputContent though the generator wrote them once (three full rewrites a fresh draw, two a repeat, withPictureTexts allocating a whole buffer even where every chunk matches), and Generator.Reset and prepare each open model_index.json again on a changed seed. Where the ledger shows them, PNGContent keeps bytes already carrying the texts it would write, the artifact ID unchanged, and the catalog is read once a session.\n\nNote: SQA-471 (P2) goes with this step, checked against the clock's decode split at 7fbcacc4c: valid. The clock reads its parts by time.Now and the decode's own parts from processmeasure.Stages, two clocks, so the first decode's four parts summed to 426 ms inside its 418 ms; the decode's parts record zero processor time and bytes read, unmeasured, as if measured; and \"decoder compiled\" holds compileResidentStatic's binding of every static input as well as the compile. The parts are read on the ledger's one clock, enclosing interval and its exclusive parts, processor time and bytes read written only where measured, and the compile and the static binding named apart or together as what they are, before the decoder's 0.47 s is cured.\n\nNote: SQA-473 (P2), valid from source: sliceLastTemporalTap copies a VAE kernel whose temporal extent is 1 whole (97.0 MB at MOSS's decoder load), and VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder has bound them (decoder-resident). No wall is measured. This step's parts of the first run (46.4 s against ComfyUI's 40.2 s) decide whether the copy and the kept feeds earn a step: the copy can return the weight itself when the kernel has one temporal tap, and the generator can release its feeds once the decoder holds them, keeping them on a failed bind.",
+          "depends_on": [
+            "pair-encode/clock",
+            "full-measurement/run"
+          ]
+        }
+      ]
+    },
+    {
       "id": "runner-from-commit",
       "title": "The lanes runner is built from the commit it runs, never from the checkout's uncommitted changes",
       "steps": [
@@ -166,95 +243,6 @@
             "internal/loop"
           ],
           "rationale": "SQA-474 (as the review wrote it at a25fa2246), checked against the code at 5f5d4db92: valid from source. improvement.Measure (cmd/loop/improve.go) returns the newest scorecard record when its commit is the cycle's, whoever published it; a cycle whose lane fails before it publishes, at a commit an earlier cycle published, so answers with the earlier record. Improve (internal/loop/driver.go) then files that record's gaps and runs Fill, whose deferred removals take cycle_state.json and cycle_credit.json, so the cells this cycle finished are measured again by the next. Not observed: the unattended cycle has not run since the measurements moved to validate -run phases.\n\nThe change: Measure answers with a record only when this cycle's publication ran (the published callback measureScorecard calls); otherwise it returns the lane's error with no record, and the state and credit stay for the resume.\n\nCheck: TestACycleCutShortAnswersWithNoScorecardItDidNotPublish holds a published record at the commit, fails a lane before publication, and finds no record answered, no gaps filed and the credit file kept. It does not exist at the base, so the check fails there."
-        }
-      ]
-    },
-    {
-      "id": "card-checks-sound",
-      "title": "The MOSS golden floors are read before a section is drawn and refuse a reference of no signal, and the sharpened pair's check compares pixels",
-      "steps": [
-        {
-          "id": "sharpened",
-          "title": "The sharpened pair's check compares the pictures' pixels, so a finishing that changes none is refused",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./internal/latentimage -count=1 -run '^TestASharpenedPictureReturnsThePictureItDrew$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "SQA-467 (P2: a check that passes without checking), checked against sharpened_pair_windows_test.go at 47b3587c9: valid. The test strips the pictures' texts before it holds the drawn picture equal to the plain one, but holds the finished picture apart from the unsharpened one by their PNG bytes, and only the finished PNG carries Finishing=sharpened, so a finishing that returned its input's pixels would pass. The change: the inequality compares decoded pixels, the drawn-equals-plain comparison as it is. Check: the test itself, which a finishing that changes no pixel now fails.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        },
-        {
-          "id": "floors",
-          "title": "The MOSS golden floors are declared before a section is drawn, each failed comparison is reported and its generator closed, and a reference of no signal is refused",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestUltraSectionsHoldTheirGoldenFloors$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "SQA-410 (P2), checked against golden_floor_windows_model_test.go and decibelsOverSquares at 47b3587c9: valid. holdGoldenFloors draws every case (readGoldenCases) before it asks whether each declares a floor, so a missing declaration costs five baseline draws and five controls; a later case's size error stops the test before an earlier failure is reported or the open generator closed; each control encodes a PNG it throws away; and a reference of all zeros scores -Inf in both precision modes, which holdMergedSections accepts as equal. The change: floors are checked before any draw, a comparison's failure is reported as it is scored and its generator closed by Cleanup, a control keeps its latent alone, and decibelsOverSquares refuses a reference with no signal while agreement with a nonzero one stays +Inf. Check: the floors test itself, with card-free cases for the refusals where they need no draw.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "reference-tools",
-      "title": "The workflow clock refuses a record it cannot write before it draws, and a ComfyUI recording binds each output to what made it",
-      "steps": [
-        {
-          "id": "clock",
-          "title": "The workflow clock refuses a record path that is not relative to the repository before it holds the machine or draws a section",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestTheWorkflowClockRefusesARecordItCannotWrite$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "SQA-460 (P2), checked against readWorkflowSource and appendWorkflowTiming at 47b3587c9: valid. An absolute OVERGO_WORKFLOW_RECORD is accepted at the start and joined under the repository only when the timing is appended, after both runs, so the attempt reported in d28ab1e84 drew twelve sections (81 s measured) and saved nothing. The change: the record path is checked, relative and inside the repository, before the quiet machine is asked for. Check: TestTheWorkflowClockRefusesARecordItCannotWrite gives the source check an absolute path and one leaving the repository: each is refused before any draw.\n\nNote: SQA-477 (P2), valid from source: ownSizeReading and TestWhereAMossStepsTimeGoes divide a recording's elapsed time by its count of progress-event intervals, not by the steps between its first and last event, so a recording with a gap in its step numbers reads slow (1.113 against 1.136 s/step with one interior event dropped; node 48 of a Turbo capture records steps 1 to 8 in five events, 129.75 against 74.14 ms/step). The intact own-size recording has all 50 events, so no reading taken so far is wrong. With this step: the MOSS recording reader computes time per completed step from the first and last timestamps and their step numbers, both timing checks read it before loading the generator, and a span of fewer than two events is refused there.",
-          "depends_on": [
-            "pair-encode/clock",
-            "full-measurement/run"
-          ]
-        },
-        {
-          "id": "recorder",
-          "title": "A ComfyUI recording binds a resumed output to the prompt that made it, keeps two files of one name apart, and credits a repeat only from two prompts",
-          "verify": "go test ./cmd/comfy-reference -count=1 -run '^TestARecordingBindsEachOutputToWhatMadeIt$'",
-          "files": [
-            "cmd/comfy-reference"
-          ],
-          "rationale": "SQA-388 (P2), checked against cmd/comfy-reference/record.go at 47b3587c9: valid. record resumes a prompt on its request hash and prompt ID alone after reading the current models and commits; await starts sampling memory at a retry; keep names a file by its node and base name, so two files of one name from one node in different subfolders overwrite each other; and the paired-recording check asks each run for a prompt ID but never compares them, so one capture given twice passes as two runs. The three pairs at 89cf0f0e3 have distinct prompt IDs. The change: a resumed output keeps the producer it was recorded under and is refused when the models or commits moved; memory sampling begun on a retry says so; a kept file's name holds its subfolder; and a pair's prompt IDs differ. Check: TestARecordingBindsEachOutputToWhatMadeIt drives record against a stand-in ComfyUI for each case.",
-          "depends_on": [
-            "pair-encode/clock",
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "served-parts",
-      "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every served path's request is split into its parts, each with its wall, processor time and bytes read, as the MOSS workflow's clock reads them, so time outside the model shows on each",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestEachServedPathSplitsItsRequestIntoParts$'",
-          "files": [
-            "internal/processmeasure",
-            "internal/capabilityruntime",
-            "internal/mediacapability",
-            "internal/latentvideo",
-            "internal/speechsynth",
-            "internal/speechrecognition",
-            "internal/inference",
-            "internal/latentimage",
-            "cmd/recipe"
-          ],
-          "rationale": "The owner's review of 2026-11-22 (second), point 3, checked against the code: partly valid. The parts ledger exists for every served path (processmeasure.Stages): the session director marks the request read, the stored answer sought, the named inputs read, the session leased and the run recorded, the workflow runtime marks each stage by its module, video marks its own (prompt rows, denoising, decoding, the clip written) and chat its load's (cmd/recipe inference_measure). But a part records its wall and the device's peak alone, speech marks none of its own, and only the MOSS workflow's clock reads a request's parts beside each one's processor time and bytes read (latentimage TestTheUltraWorkflowIsTimedInItsOrder, readProcessUse, written into that test), which is how adapter-hold's per-request hashing was found.\n\nThe change: a part records its processor time and the bytes the process read inside it (processmeasure.Part), so every ledger carries what the MOSS clock computed by hand; speech marks its parts as video does; and the recipe command's measure reports every served task's parts, not chat's load alone. The MOSS clock reads the ledger in place of its own counters.\n\nCheck: TestEachServedPathSplitsItsRequestIntoParts serves a picture, a clip, speech and a chat turn through their capabilities with stand-in sessions under a ledger: each request's parts name its load or lease, its stages and its recording, each with wall, processor time and bytes read, their walls inside the request's.\n\nNote: SQA-468 (P3) and the generator part of SQA-461 go with this step, as the parts they cost show in its ledger: the finished PNG is rebuilt with its texts by the workflow's output encoder, keptDrawn and the workspace's OutputContent though the generator wrote them once (three full rewrites a fresh draw, two a repeat, withPictureTexts allocating a whole buffer even where every chunk matches), and Generator.Reset and prepare each open model_index.json again on a changed seed. Where the ledger shows them, PNGContent keeps bytes already carrying the texts it would write, the artifact ID unchanged, and the catalog is read once a session.\n\nNote: SQA-471 (P2) goes with this step, checked against the clock's decode split at 7fbcacc4c: valid. The clock reads its parts by time.Now and the decode's own parts from processmeasure.Stages, two clocks, so the first decode's four parts summed to 426 ms inside its 418 ms; the decode's parts record zero processor time and bytes read, unmeasured, as if measured; and \"decoder compiled\" holds compileResidentStatic's binding of every static input as well as the compile. The parts are read on the ledger's one clock, enclosing interval and its exclusive parts, processor time and bytes read written only where measured, and the compile and the static binding named apart or together as what they are, before the decoder's 0.47 s is cured.\n\nNote: SQA-473 (P2), valid from source: sliceLastTemporalTap copies a VAE kernel whose temporal extent is 1 whole (97.0 MB at MOSS's decoder load), and VAEProgram.feeds keeps 108.9 MB of host weights after the resident decoder has bound them (decoder-resident). No wall is measured. This step's parts of the first run (46.4 s against ComfyUI's 40.2 s) decide whether the copy and the kept feeds earn a step: the copy can return the weight itself when the kernel has one temporal tap, and the generator can release its feeds once the decoder holds them, keeping them on a failed bind.",
-          "depends_on": [
-            "pair-encode/clock",
-            "full-measurement/run"
-          ]
         }
       ]
     },

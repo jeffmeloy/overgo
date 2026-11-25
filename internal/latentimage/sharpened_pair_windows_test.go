@@ -10,6 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/media"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestASharpenedPictureReturnsThePictureItDrew holds moss-sharpened-pair/do: the MOSS Ultra workflow saves each
@@ -40,8 +41,10 @@ func TestASharpenedPictureReturnsThePictureItDrew(t *testing.T) {
 	if !bytes.Equal(finished.Drawn, testcheck.Must(withPictureTexts(unsharpened.Data, nil))(t)) {
 		t.Errorf("the sharpened picture came with %d bytes as the picture it drew; want the same request's unsharpened picture, %d bytes", len(finished.Drawn), len(unsharpened.Data))
 	}
-	if bytes.Equal(finished.Data, unsharpened.Data) {
-		t.Error("the sharpened picture is the picture it drew")
+	// Its pixels, not its bytes, are held apart: only the finished picture's bytes name its finishing (SQA-467), so a
+	// finishing that changed no pixel had passed.
+	if bytes.Equal(testutil.PNGRGB(t, finished.Data), testutil.PNGRGB(t, unsharpened.Data)) {
+		t.Error("the sharpened picture's pixels are the picture it drew")
 	}
 	before, kept := finished.BeforeFinishing()
 	if drawn, isPicture := before.(EncodedImage); !kept || !isPicture || !bytes.Equal(drawn.Data, finished.Drawn) || drawn.Width != finished.Width || drawn.Height != finished.Height {

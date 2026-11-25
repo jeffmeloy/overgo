@@ -45,7 +45,7 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 // "verify: ". A long check then reports where its caller watches, not at its end alone: a cycle's lanes ran six hours
 // as a landing's check and printed nothing until a page answered a journey with a refusal (2026-11-14). began, where
 // given, is called as a go test's test binary starts, each package's start in go test's JSON, so a caller times the
-// tests apart from the build before them.
+// tests apart from the build before them; a check that runs no go test of its own calls began as it starts.
 func ExecuteShowing(ctx context.Context, directory, command string, overrides []string, shown io.Writer, began func()) (runrecord.VerdictClass, error) {
 	if ctx == nil {
 		return "", errors.New("verification context is nil")
@@ -67,6 +67,12 @@ func ExecuteShowing(ctx context.Context, directory, command string, overrides []
 		return "", fmt.Errorf("%w: the check hands a shell a command string, which hides what it runs from the parse and its evidence from the check; run each command as its own", ErrFailed)
 	}
 	structuredGoTest := len(parsed.GoTests()) != 0
+	// A check that runs no go test of its own (a browser check through cmd/webui-lane, a shell pipeline) starts no test
+	// binary go test's JSON would say began, so its caller's clock starts with the check (overrun-every-check): on
+	// 2026-11-24 moss-page/pictures' undo run hung 32 minutes in a browser check and nothing said so.
+	if !structuredGoTest && began != nil {
+		began()
+	}
 	executable := parsed.RunCommand(command)
 	first, err := executeShell(ctx, shell, directory, executable, environment, shown, began)
 	if err != nil {

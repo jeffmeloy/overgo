@@ -23,51 +23,6 @@
       ]
     },
     {
-      "id": "observed-inputs",
-      "title": "A check's pass is kept while what it read is unchanged, its inputs observed, so a commit runs only the checks its change can alter",
-      "steps": [
-        {
-          "id": "rule",
-          "title": "The gate and the lanes keep a package's pass while its test binary and every file it read are unchanged by content",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAPassIsKeptWhileWhatItReadIsUnchanged$'",
-          "files": [
-            "internal/testevidence",
-            "internal/landing",
-            "cmd/validate"
-          ],
-          "rationale": "Follows observed-inputs/measure. The change: one rule for every test the gate's stages and the lanes run. A package's pass is kept, by its test binary's identity and the digests of what it read, and a later run whose binary and inputs match takes the kept pass in place of running; any input that differs runs it. Declared inputs and -count=1 go. Check: TestAPassIsKeptWhileWhatItReadIsUnchanged runs a fixture package twice and finds the second taken from the kept pass, then changes the file it reads and finds it run. It does not exist at the base, so the check fails there.\n\nNote: The cause, measured by observed-inputs/measure: go test keeps no pass of a package whose tests start a child process with its stdio unset. os/exec opens the null device for it, the test log records the relative path NUL, go test resolves it inside the package, Windows reports it modified in 2185, and cmd/go refuses an input modified under 2 s ago (errFileTooNew). All 11 host packages surveyed do so. The temporary paths a run reads lie outside the module, which go test never rechecks. So the kept pass this step keeps, keyed by the test binary and the content of what it read, takes NUL for the device it is, not a file, and leaves out what lies outside the repository's module, as go test does. Without that, no package the gate runs would be kept."
-        },
-        {
-          "id": "retire",
-          "title": "The mechanisms the kept passes make redundant go: the yield to a newer commit, the lanes' rotation and the per-package turn handover",
-          "verify": "go test ./cmd/validate ./internal/landing -count=1 -run '^TestNoLaneYieldsOrRotatesWhatAKeptPassCovers$'",
-          "files": [
-            "cmd/validate",
-            "internal/landing",
-            "cmd/loop",
-            "internal/plan"
-          ],
-          "rationale": "Follows observed-inputs/rule. With passes kept by what they read, a run at an older commit spends nothing a newer one repeats, so the run's yield to a newer commit due (plan.Yields, cmd/validate/run.go:276) goes; the lanes need no rotation to reach packages long without a pass (lanes-rotation, which this step retires unworked); and the per-package handover of the test turn (testSteps, landing.HoldTestTurnEach) stays only where a package's own run outlasts a commit's patience, which turn-priority covers. Check: TestNoLaneYieldsOrRotatesWhatAKeptPassCovers finds no yield and no rotation in a lanes run whose packages' passes are kept. It does not exist at the base, so the check fails there.\n\nNote: The lanes' rotation this step removes is lanes-order/do's order, a close's lanes least recently run first (cmd/validate leastRecentlyRunFirst), filed 2026-11-24 for the interval before this step lands. It goes with the yield, once no run spends what a newer one repeats."
-        }
-      ]
-    },
-    {
-      "id": "overrun-every-check",
-      "title": "A rerun without the change that outlasts twice the check's own time is said for every kind of check, a browser lane's and a pipeline's among them",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A check that runs no go test of its own is timed for the overrun notice from its start",
-          "verify": "go test ./internal/planverify -count=1 -run '^TestACheckRunningNoGoTestIsTimedFromItsStart$'",
-          "files": [
-            "internal/planverify",
-            "internal/landing"
-          ],
-          "rationale": "The owner's review of 2026-11-24, point 1, checked against the code: valid. The undo run's overrun notice (internal/landing/undo.go overrunClock) starts when began is called, and planverify calls began only on a go test JSON start event (progressLines.show). A check run through cmd/webui-lane prints its own lines, so for a browser check the notice never starts: moss-page/pictures' first attempt hung 32 minutes in its undo run on 2026-11-24, and nothing said so; the same hang went unsaid on 2026-11-22. TestACheckShowsItsProgress asserts the gap: a command running no test binary is said to begin none.\n\nThe change: ExecuteShowing calls began as it starts a check whose parse names no go test of its own (a browser lane, a pipeline over validate), so its overrun is timed from its start, its build included, as its wall with the change was; a go test check keeps its clock from its first test binary's start (undo-overrun/do). TestACheckShowsItsProgress's last case is replaced.\n\nCheck: TestACheckRunningNoGoTestIsTimedFromItsStart runs a command that runs no go test (go version) and finds began called once, as it starts, and a go test check's began still called as each test binary starts. It does not exist at the base, so the check fails there."
-        }
-      ]
-    },
-    {
       "id": "flashnext-memory",
       "title": "Flash-Next's long-context acceptance has a cause for its failure at 16:44: what its server needs against what the machine had free",
       "steps": [
@@ -191,6 +146,35 @@
             "internal/loop"
           ],
           "rationale": "SQA-474 (as the review wrote it at a25fa2246), checked against the code at 5f5d4db92: valid from source. improvement.Measure (cmd/loop/improve.go) returns the newest scorecard record when its commit is the cycle's, whoever published it; a cycle whose lane fails before it publishes, at a commit an earlier cycle published, so answers with the earlier record. Improve (internal/loop/driver.go) then files that record's gaps and runs Fill, whose deferred removals take cycle_state.json and cycle_credit.json, so the cells this cycle finished are measured again by the next. Not observed: the unattended cycle has not run since the measurements moved to validate -run phases.\n\nThe change: Measure answers with a record only when this cycle's publication ran (the published callback measureScorecard calls); otherwise it returns the lane's error with no record, and the state and credit stay for the resume.\n\nCheck: TestACycleCutShortAnswersWithNoScorecardItDidNotPublish holds a published record at the commit, fails a lane before publication, and finds no record answered, no gaps filed and the credit file kept. It does not exist at the base, so the check fails there."
+        }
+      ]
+    },
+    {
+      "id": "observed-inputs",
+      "title": "A check's pass is kept while what it read is unchanged, its inputs observed, so a commit runs only the checks its change can alter",
+      "steps": [
+        {
+          "id": "rule",
+          "title": "The gate and the lanes keep a package's pass while its test binary and every file it read are unchanged by content",
+          "verify": "go test ./internal/landing -count=1 -run '^TestAPassIsKeptWhileWhatItReadIsUnchanged$'",
+          "files": [
+            "internal/testevidence",
+            "internal/landing",
+            "cmd/validate"
+          ],
+          "rationale": "Follows observed-inputs/measure. The change: one rule for every test the gate's stages and the lanes run. A package's pass is kept, by its test binary's identity and the digests of what it read, and a later run whose binary and inputs match takes the kept pass in place of running; any input that differs runs it. Declared inputs and -count=1 go. Check: TestAPassIsKeptWhileWhatItReadIsUnchanged runs a fixture package twice and finds the second taken from the kept pass, then changes the file it reads and finds it run. It does not exist at the base, so the check fails there.\n\nNote: The cause, measured by observed-inputs/measure: go test keeps no pass of a package whose tests start a child process with its stdio unset. os/exec opens the null device for it, the test log records the relative path NUL, go test resolves it inside the package, Windows reports it modified in 2185, and cmd/go refuses an input modified under 2 s ago (errFileTooNew). All 11 host packages surveyed do so. The temporary paths a run reads lie outside the module, which go test never rechecks. So the kept pass this step keeps, keyed by the test binary and the content of what it read, takes NUL for the device it is, not a file, and leaves out what lies outside the repository's module, as go test does. Without that, no package the gate runs would be kept.\n\nNote: Corrected 2026-11-25 at b9bac4955, checked against observed-inputs/measure's readings and cmd/go.\n\nThe earlier note's last clause is wrong for the lanes. They run -count=1 because their models and references lie outside the module, which go test never rechecks (SQA-315), so a kept pass must key outside-module inputs too. Only the null device and the test's own temporary files are left out.\n\nThe rule as filed is not sound for the gate's packages. A kept pass keyed by what the test binary read cannot see what its child processes read, and every package measured starts children: all 11 surveyed open NUL. Some of those children read the repository itself: commanddoc's builds of each command, go list, git in the trunk. A change those children alone read would pass the gate on a pass kept from before it. go test's cache has the same blind spot, but it never kept a pass here (the null device), so the blind spot never mattered. A rule that can pass a change unchecked costs more than a slow commit.\n\nBefore the rule is built, the children's reads must be seen or bounded:\n- A child started in a temporary directory, a fixture's repository, reads only what the test made there. One started in the repository reads inputs its parent's log cannot name.\n- The rule may keep a pass only of a package whose tests start no child in the repository. That needs the tests' children to start through one helper, which records each child's working directory beside the test log, with a rule holding the tests' raw starts to it.\n- Otherwise the step stays unbuilt.\n\nThe row is moved after the tooling rows whose steps are sound as filed, until that design is settled and measured: how many packages start a child in the repository."
+        },
+        {
+          "id": "retire",
+          "title": "The mechanisms the kept passes make redundant go: the yield to a newer commit, the lanes' rotation and the per-package turn handover",
+          "verify": "go test ./cmd/validate ./internal/landing -count=1 -run '^TestNoLaneYieldsOrRotatesWhatAKeptPassCovers$'",
+          "files": [
+            "cmd/validate",
+            "internal/landing",
+            "cmd/loop",
+            "internal/plan"
+          ],
+          "rationale": "Follows observed-inputs/rule. With passes kept by what they read, a run at an older commit spends nothing a newer one repeats, so the run's yield to a newer commit due (plan.Yields, cmd/validate/run.go:276) goes; the lanes need no rotation to reach packages long without a pass (lanes-rotation, which this step retires unworked); and the per-package handover of the test turn (testSteps, landing.HoldTestTurnEach) stays only where a package's own run outlasts a commit's patience, which turn-priority covers. Check: TestNoLaneYieldsOrRotatesWhatAKeptPassCovers finds no yield and no rotation in a lanes run whose packages' passes are kept. It does not exist at the base, so the check fails there.\n\nNote: The lanes' rotation this step removes is lanes-order/do's order, a close's lanes least recently run first (cmd/validate leastRecentlyRunFirst), filed 2026-11-24 for the interval before this step lands. It goes with the yield, once no run spends what a newer one repeats."
         }
       ]
     },

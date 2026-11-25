@@ -45,13 +45,42 @@ func TestACheckShowsItsProgress(t *testing.T) {
 		t.Errorf("the check showed go test's JSON itself: %q", said)
 	}
 	shown.Reset()
-	if _, err := ExecuteShowing(t.Context(), directory, "go version", nil, &shown, func() { began++ }); err != nil {
+	if _, err := ExecuteShowing(t.Context(), directory, "go version", nil, &shown, nil); err != nil {
 		t.Fatal(err)
-	}
-	if began != 2 {
-		t.Error("a command that runs no test binary was said to begin one")
 	}
 	if !strings.HasPrefix(shown.String(), "verify: go version go") {
 		t.Errorf("a command's own line was shown as %q; want it marked as the check's", shown.String())
+	}
+}
+
+// TestACheckRunningNoGoTestIsTimedFromItsStart holds the overrun notice to every kind of check (overrun-every-check/do):
+// a check that runs no go test of its own, as a browser check through cmd/webui-lane does, tells its caller it began as
+// it starts, once, before its command has run, so the caller's clock times it; one that runs go test still tells its
+// caller as each test binary starts, not before. began had been called only on go test's JSON start events, so a
+// browser check's undo run hung 32 minutes on 2026-11-24 and its overrun notice never started.
+func TestACheckRunningNoGoTestIsTimedFromItsStart(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	marker := filepath.Join(directory, "ran")
+	began, ranBefore := 0, false
+	if _, err := ExecuteShowing(t.Context(), directory, "touch ran", nil, nil, func() {
+		began++
+		_, err := os.Stat(marker)
+		ranBefore = err == nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if began != 1 || ranBefore {
+		t.Errorf("a check running no go test told its caller it began %d times, after its command had run %t; want once, as it starts", began, ranBefore)
+	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "go.mod"), []byte("module example.com/probe\n\ngo 1.26\n"), 0o600))
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(directory, "p"), 0o755))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "p", "p_test.go"), []byte("package p\n\nimport \"testing\"\n\nfunc TestA(t *testing.T) {}\n"), 0o600))
+	began = 0
+	if _, err := ExecuteShowing(t.Context(), directory, "go test ./p -count=1", nil, nil, func() { began++ }); err != nil {
+		t.Fatal(err)
+	}
+	if began != 1 {
+		t.Errorf("a go test check of one package told its caller it began %d times; want once, as its test binary started", began)
 	}
 }

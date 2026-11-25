@@ -723,6 +723,11 @@ FINDINGS park off-scope work: go run ./cmd/finding -h
 // refusal). Whether the packages it names hold a test it runs is the commit's to read, in the change that adds them.
 func verifyRefusal(command string) error {
 	switch {
+	case strings.TrimSpace(command) == "false":
+		// A check no work can pass fails at its commit whatever the step did (SQA-482: measured-names-first/do,
+		// contended-credit/do, user-size-inapplicable/do and flash-next-projection/do were each filed with it, retired,
+		// and landed under another step).
+		return errors.New("plan: the check false fails whatever the work does; name the test the change will add (go test ./<package> -run '^<Test>$'), which the commit's form stage finds once it is written")
 	case browserVerifyOutsideLane(command):
 		return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -leg in the verify")
 	case strings.Contains(command, processlock.StateDirectory):

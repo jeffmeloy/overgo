@@ -76,6 +76,15 @@ func ParseVerify(command string) (VerifyCommand, error) {
 		}
 		segment, err := parseVerifySegment(current)
 		if err != nil {
+			// In a composite command, which the shell runs whole and no caller reads for cached credit, a segment of
+			// assignments alone is the shell's own form: s=$(go run ./cmd/validate -scorecard) runs the command it
+			// captures, the next segment (SQA-483: full-measurement/run's check was refused so at its commit, after nine
+			// hours of measurement). In a plain && chain an assignment alone exports nothing to what follows, and is
+			// refused.
+			if composite && assignmentsOnly(current) {
+				current = nil
+				return nil
+			}
 			return err
 		}
 		parsed.Segments = append(parsed.Segments, segment)
@@ -95,6 +104,14 @@ func ParseVerify(command string) (VerifyCommand, error) {
 		return VerifyCommand{}, err
 	}
 	return parsed, nil
+}
+
+// assignmentsOnly says a segment's words are shell assignments and nothing else, env aside.
+func assignmentsOnly(words []verifyWord) bool {
+	if len(words) > 0 && words[0].text == "env" {
+		words = words[1:]
+	}
+	return len(words) > 0 && !slices.ContainsFunc(words, func(word verifyWord) bool { return !isAssignment(word.text) })
 }
 
 // GoTests returns the go test invocations in order.

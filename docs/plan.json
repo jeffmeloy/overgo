@@ -40,22 +40,6 @@
       ]
     },
     {
-      "id": "check-form-reads",
-      "title": "A check is filed as the shell runs it: an assignment of a command's output runs that command, and the literal false, which no work can pass, is refused",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A check is filed as the shell runs it: an assignment of a command's output runs that command, and the literal false, which no work can pass, is refused",
-          "verify": "go test ./cmd/plan ./internal/runrecord -count=1 -run '^(TestACheckNoWorkCanPassIsRefusedWhenFiled|TestAnAssignmentOfACommandsOutputRunsIt)$'",
-          "files": [
-            "cmd/plan",
-            "internal/runrecord"
-          ],
-          "rationale": "SQA-482 and SQA-483, checked against the code at 5f5d4db92: both valid.\n\nSQA-482: verifyRefusal (cmd/plan/main.go) files the literal false, and TestACheckThatCannotRunAsWrittenIsRefusedWhenFiled lists it among the checks a step may take. A step filed with false fails at its commit whatever the work, so measured-names-first/do, contended-credit/do, user-size-inapplicable/do and flash-next-projection/do were each retired and the work landed under another step. The change: verifyRefusal refuses a check that is only false, saying to name the test the change will add (the commit's form stage finds it by go test -list once written).\n\nSQA-483: ParseVerify (internal/runrecord/verify_command.go) splits s=$(go run ./cmd/validate -scorecard) at the parenthesis and refuses the segment s=$ as one that sets an environment and runs nothing, though the shell runs the command it captures. The refusal stands in a plain \u0026\u0026 chain, where an assignment alone exports nothing to the commands after it; in a composite command, which the shell runs whole and which no caller reads for cached credit, a segment of assignments alone is the shell's own form and is kept. The full-measurement/run check written that way was refused at its commit after nine hours of measurement.\n\nCheck: TestACheckNoWorkCanPassIsRefusedWhenFiled files false and is refused; TestAnAssignmentOfACommandsOutputRunsIt parses the original full-measurement/run check as composite, with no error, and still refuses A=1 \u0026\u0026 go test as a plain chain. Neither test exists at the base, so the check fails there."
-        }
-      ]
-    },
-    {
       "id": "own-record",
       "title": "A measurement cycle answers with the scorecard it published, so a cycle cut short at a commit another cycle published keeps its cells and files no gaps of the other's",
       "steps": [

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/overgodbtest"
+	"overgo/internal/pathidentity"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -345,6 +348,40 @@ func TestCellCreditCoversADirectoryView(t *testing.T) {
 	testcheck.NoError(t, os.RemoveAll(directory))
 	if consumed() == consumed() {
 		t.Fatal("a view whose directory is gone earned a stable credit")
+	}
+}
+
+// TestAModelViewNamesNoGitAdministration holds a view's credit to the model's files, its checkout's git administration
+// left out (SQA-518): a changed git log keeps the credit and reads nothing under .git, where the run at efa59bd59 had
+// hashed 127 paths and 15.65 GB there, two of them a second copy of Gemma's weight shards; a changed weight costs it.
+func TestAModelViewNamesNoGitAdministration(t *testing.T) {
+	t.Parallel()
+	store := overgodbtest.Open(t, t.TempDir())
+	directory := t.TempDir()
+	weights, log := filepath.Join(directory, "model.safetensors"), filepath.Join(directory, ".git", "logs", "HEAD")
+	write := func(path, text string) {
+		testutil.WriteTextFile(t, filepath.Dir(path), filepath.Base(path), text, 0o600)
+	}
+	write(weights, "weights")
+	write(log, "checkout")
+	write(filepath.Join(directory, ".git", "lfs", "objects", "weights"), "weights")
+	cell := ModelValidation{Model: creditView(t, store, directory), Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "git-view"), Kind: recipe.TaskImageGen, Validation: "image-proof", Location: directory, Directory: directory}
+	consumed := func() (string, []string) {
+		t.Helper()
+		listed := map[string]string{}
+		return consumedFiles(t.Context(), store, cell, listed, "fixture-execution"), slices.Sorted(maps.Keys(listed))
+	}
+	first, read := consumed()
+	if want := []string{testcheck.Must(pathidentity.Canonical(weights))(t)}; !slices.Equal(read, want) {
+		t.Fatalf("a view read %q, want only its weights %q", read, want)
+	}
+	write(log, "checkout and a pull")
+	if again, _ := consumed(); again != first {
+		t.Error("a changed git log cost the view's credit")
+	}
+	write(weights, "changed")
+	if changed, _ := consumed(); changed == first {
+		t.Error("changed weights kept the view's credit")
 	}
 }
 

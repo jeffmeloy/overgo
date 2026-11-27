@@ -107,21 +107,7 @@ func consumedFiles(ctx context.Context, store *overgodb.Store, cell ModelValidat
 			return rand.Text()
 		}
 		if info.IsDir() {
-			err = filepath.Walk(path, func(file string, entry fs.FileInfo, walkErr error) error {
-				if walkErr != nil {
-					return walkErr
-				}
-				if entry.IsDir() {
-					return nil
-				}
-				target, err := os.Stat(file)
-				if err != nil || !target.Mode().IsRegular() {
-					return errors.New("consumed input has no regular file authority")
-				}
-				canonical, err := pathidentity.Canonical(file)
-				if err != nil {
-					return err
-				}
+			err = eachModelFile(path, func(canonical string) error {
 				if _, declared := inputs[canonical]; !declared {
 					return errors.New("consumed directory has an undeclared input")
 				}
@@ -176,20 +162,38 @@ func consumedFiles(ctx context.Context, store *overgodb.Store, cell ModelValidat
 // image is no file's bytes, so each file's own identity keys the credit. A README changing costs a credit, which is
 // the safe way round; a file that is no regular file has no authority.
 func viewFiles(directory string, inputs map[string]string) error {
+	return eachModelFile(directory, func(canonical string) error {
+		inputs[canonical] = ""
+		return nil
+	})
+}
+
+// gitAdministration is where a model's checkout keeps its version control: no model reads it, and walked as the
+// model's files it named 127 paths and 15.65 GB in the run at efa59bd59, two of them a second copy of Gemma's weight
+// shards, so a changed git log changed a cell's key and the obligations a retry is credited under (SQA-518).
+const gitAdministration = ".git"
+
+// eachModelFile calls each with the canonical path of every regular file under directory, its git administration left
+// out, and refuses a file that is no regular file.
+func eachModelFile(directory string, each func(canonical string) error) error {
 	return filepath.Walk(directory, func(file string, entry fs.FileInfo, walkErr error) error {
-		if walkErr != nil || entry.IsDir() {
+		switch {
+		case walkErr != nil:
 			return walkErr
+		case entry.Name() == gitAdministration && entry.IsDir():
+			return filepath.SkipDir
+		case entry.Name() == gitAdministration, entry.IsDir():
+			return nil
 		}
 		target, err := os.Stat(file)
 		if err != nil || !target.Mode().IsRegular() {
-			return errors.New("a view's directory holds a file with no regular authority")
+			return errors.New("a model's directory holds a file with no regular authority")
 		}
 		canonical, err := pathidentity.Canonical(file)
 		if err != nil {
 			return err
 		}
-		inputs[canonical] = ""
-		return nil
+		return each(canonical)
 	})
 }
 

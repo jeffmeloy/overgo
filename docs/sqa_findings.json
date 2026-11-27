@@ -1,24 +1,23 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would finish liveedit-size/do as planned. The scorecard has a 32 by 16 timing and still needs the 832 by 480 edit with a matching source clip. For faster commits, SQA-516 is still my first recommendation. The four landings after lanes-record spent 52 minutes combined in invariants and general tests. Only part of that work overlaps.",
-    "Before accepting a whole-run MOSS verdict, I would make it agree with the runner about missing checkpoints (SQA-517) and make a deleted fixture invalidate its reader's pass (SQA-415). Before another full measurement, I would settle publication-only retry (SQA-502) and which run owns a publication (SQA-474).",
-    "Before trusting another MOSS training proof, I would finish SQA-507 in the route that reads the pictures. The new identity reader can hash a different file from the encoder even when the corpus stays still."
+    "Master addressed the two clearest sources of repeated checking. The step verifier now precedes the long suites, and a measurement retry can reuse passed lanes for the same inputs. The committed plan has no implementation rows. I would let the full measurement at efa59bd59 finish. The landing that introduced the faster gate ran under its predecessor, so its wall time cannot establish the saving.",
+    "My first recommendation for the next measurement is SQA-518. The current run identified 14.58 GiB of Git internals in model checkouts, including two copies of weight shards already identified by their working paths. Before using a historical MOSS pass to close the campaign, I would address SQA-517 and SQA-415 so the verdict uses the tests and fixtures required at the named commit. SQA-474 still matters when attributing a published scorecard to its run."
   ],
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-516",
+      "id": "SQA-518",
       "severity": "P2",
       "files": [
-        "internal/landing/landing.go",
-        "internal/landing/wholetree.go",
-        "internal/landing/ceilings.go",
-        "internal/landing/scorecard_test.go"
+        "cmd/validate/cell_credit.go",
+        "cmd/validate/bound_records.go",
+        "cmd/validate/cell_credit_test.go",
+        "cmd/loop/improve.go"
       ],
-      "input": "Land a production change with a fast step verifier and unchanged inputs between the two host test stages. An encoder-only production edit at 692c145aa exercised the scorecard-history fixture. On a refused landing, journey-attach/do, the step verifier itself failed in 9.7 s.",
-      "expected": "Keep cheap prerequisite checks early. Run the step verifier before unrelated long integration fixtures. Keep their distinct behavioral coverage in the ordinary suite and run each check once per unchanged candidate and inputs. Preserve the tagged whole-tree checks, undo evidence and coverage of inputs the gate edits.",
-      "actual": "invariants runs four full ordinary package suites before the step verifier. At 692c145aa the scorecard-history fixture took 66 s inside a 9 min 28 s stage before a 9 s verifier. On the refused journey-attach/do attempt, invariants took 215 s before the 9.7 s failure. After a passing verifier, test requests ./... again. At 6862d5287 the dispatch refusal test ran for 47 s then 41 s, and the trunk protection test for 29 s then 35 s. End-to-end savings are unmeasured."
+      "input": "Bind a validation cell that uses a native model checkout with Git LFS. On a fresh retry at the same commit and store, let only the model checkout's .git/logs/HEAD change. The model files and all explicit execution inputs are identical.",
+      "expected": "Exclude incidental Git administration from both directory walks. Preserve byte identity for actual model files, explicitly consumed targets and other regular files in the model view. A change confined to an unused Git log should preserve completed work.",
+      "actual": "The retained measurement at efa59bd59 records digests for 438 paths. Of those, 127 are inside .git directories and total 15,653,075,069 bytes. Two Gemma LFS objects have the same digests as the two working weight shards, accounting for 15,432,736,416 bytes of duplicate content hashed by path. viewFiles includes Git internals and consumedFiles requires them, so changing the log changes both the cell key and the cycle's obligations digest on a fresh bind. This can discard completed cell and lane credit. The duplicate digests were observed. A resulting rerun and its elapsed cost were not measured."
     },
     {
       "id": "SQA-517",
@@ -26,11 +25,12 @@
       "files": [
         "cmd/validate/passed_since.go",
         "cmd/validate/test_steps.go",
+        "cmd/validate/lane_reach.go",
         "cmd/validate/passed_since_test.go"
       ],
-      "input": "At the requested commit let the other lanes have current passes. In the models lane keep a current pass for TestMOSSSamplingCheckpoint and no result for the required TestMOSSGenerationCheckpoint after an interrupted run. All other retained models results are current. Ask validate -lanes-passed-at about that commit.",
-      "expected": "Report incomplete coverage and name the missing checkpoint. Judge the tests required at the requested commit with the lane's build tags and selection rules. Reading the verdict should not run the checkpoints. A result for a removed test should cease to count.",
-      "actual": "lanesPassedAt iterates only keys already in the result map. One current models pass and zero counted failures suffice, even when a required test has no key. The runner's testSteps lists the generation checkpoint and schedules it on the same inputs. Conversely, a retained failure for a deleted test in a still-selected package keeps the verdict red. Both cases follow from source at 4661a328c. The existing check covers empty results and a recorded stale result, but never one missing required result beside a current pass."
+      "input": "Commit A requires TestMOSSGenerationCheckpoint. Its result alone is missing and every other required test and lane has a current pass at A. At commit B remove only that checkpoint, then ask validate -lanes-passed-at A from B.",
+      "expected": "List the tests selected by A's lane definitions and build tags, and evaluate their dependency reach at A. Report incomplete coverage for the missing checkpoint, or say the historical verdict cannot be established. Reading the verdict should require no checkpoint execution.",
+      "actual": "Source at efa59bd59. answerLanesPassedAt compares result commits and changes against A, but listedTests and stillCurrent use the calling checkout. B omits the missing checkpoint from the count, so the command can report a pass for A. The same-revision missing-result case is fixed. The existing test supplies the listed names directly and does not exercise a query across two revisions."
     },
     {
       "id": "SQA-415",
@@ -46,18 +46,6 @@
       "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
       "expected": "A removed fixture invalidates its reader's prior pass. Where the reader cannot be resolved, the selector must cover the affected lane.",
       "actual": "TrackedDocuments lists files still present. documentReaders omits the deleted fixture and discover returns no readers. In the landed per-test selector, stillCurrent treats that empty reach as proof that the prior pass is current, so -reached skips the check that would fail on the missing file. The retained fixture check covers edits while both files exist. The deletion case follows from source."
-    },
-    {
-      "id": "SQA-502",
-      "severity": "P2",
-      "files": [
-        "cmd/loop/improve.go",
-        "cmd/loop/improve_resume_test.go",
-        "internal/landing/lanes.go"
-      ],
-      "input": "In a full measurement let preflight, lanes and cells pass, then let publication alone fail before a scorecard is written. Retry the same run with matching commit, store, obligations and prerequisite inputs.",
-      "expected": "Retry publication with its completed cells and verified prerequisites. Recheck prerequisites when their inputs change or their successful completion cannot be established.",
-      "actual": "The launcher now admits a requested full scorecard through the cycle. On a publication-only retry measurePhases reads Cells and Published but invokes preflight and lanes before consulting either. The retained November 25 run spent 9 h 14 min 23 s in lanes. Repetition follows from source and the resume fixture. A retry duration has not been measured."
     },
     {
       "id": "SQA-474",
@@ -77,16 +65,13 @@
       "id": "SQA-507",
       "severity": "P2",
       "files": [
-        "cmd/train/route_moss_windows.go",
-        "cmd/train/route_moss_heldout_windows_test.go",
         "cmd/train/route_codec.go",
-        "cmd/train/shared_run.go",
-        "internal/trainingworkflow/media_manifest.go",
-        "cmd/validate/training_proof.go"
+        "cmd/train/route_encoder_bridge.go",
+        "internal/trainingworkflow/media_manifest.go"
       ],
-      "input": "In two MOSS corpora, put one leading space before red.png in the manifest's path field. Give both directories the same red.png and different valid pictures named ' red.png'. Use the same caption, weights and size. Separately, replace held-out picture B with same-size training picture A after split admission and before preparation.",
-      "expected": "Derive the recipe and proof identities from the ordered inputs the route admits and consumes. Preserve its path syntax and relocation behavior. Consume the admitted media or verify their identity on reread so a changed training clip or substituted held-out picture is caught.",
-      "actual": "MediaManifestBytes trims the line before extracting the path and hashes red.png. mossManifest preserves the leading space and mossPrepare encodes ' red.png'. The two static corpora therefore train on different pixels under the same dataset identity. MOSS also reopens held-out paths after checking the split, and the codec reopens clips after hashing, without comparing either reread to the admitted input. These are source counterexamples at 07a7a7185."
+      "input": "Admit valid codec clip A, then replace it with same-size valid clip B with a different first frame after clipCorpus.admitted verifies A and before clipFirstFrame opens the path.",
+      "expected": "Decode the bytes that established the training corpus identity, or refuse the changed input. The codec route can bind the decoder to each verified clip in turn while retaining the existing ordered corpus identity.",
+      "actual": "Source at efa59bd59. codecRun.observed passes a pathname from admitted to clipFirstFrame. admitted reads and hashes A, closes it, and returns the path. The decoder reopens the path and can train on B under A's identity. The retained route test replaces the file before admitted, outside this interval. MOSS picture preparation now consumes its admitted bytes. No incorrect codec training run was observed."
     },
     {
       "id": "SQA-494",
@@ -193,102 +178,75 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-27",
-    "head": "ef97df5841d92b107f9fcaeb74500f4d99cc1d34",
+    "head": "efa59bd5922f60635af122cf728e6e1830647355",
     "findings": {
       "SQA-517": {
-        "action": "implemented",
-        "rows": [
-          "lanes-required/do"
-        ],
-        "note": "Answered by the lead on 2026-11-27 at ef97df584: valid from source, a check that passes without checking (lanesPassedAt, which the lead wrote in lanes-record/record, counts only the results the record holds, so a required test with no result goes unseen and a deleted test's failure stays). Filed as lanes-required/do. Implemented 2026-11-27 by lanes-required/do (fde0c1d4f): lanesPassedAt judges each lane by the tests its packages list, as the runner's steps list them, so a listed test with no current pass leaves the lane unpassed and a result for a test no longer listed is not read, for the review's recheck."
-      },
-      "SQA-516": {
-        "action": "implemented",
-        "rows": [
-          "gate-once/do"
-        ],
-        "note": "Answered by the lead on 2026-11-27 at ef97df584: valid from the landing records (four whole suites in invariants before the verifier, ./... again in the test stage, the dispatch refusal test 47 s and 41 s at 6862d5287), the repeated testing the owner's review of 2026-11-25 named. Filed as gate-once/do. Implemented 2026-11-27 by gate-once/do, the landing that carries this answer: the step's check runs before every suite; a landing's invariants stage runs the whole-tree tests alone and its test stage every package's suite once, lowering the ceilings it reports; a preflight, which has no test stage, still runs the invariant suites (TestALandingRunsEachSuiteOnce). At ff47d11d6 internal/landing had run 252 s in invariants and 292 s again in the test stage, for the review's recheck."
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten in the working tree after efa59bd59: valid from source (answerLanesPassedAt lists the tests and the cycle's lanes of the calling checkout, so asked about A from a later B it counts B's tests). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. Nothing asks -lanes-passed-at of another commit: no step's check and no code calls it, and a question about a commit is answered in that commit's checkout."
       },
       "SQA-507": {
-        "action": "filed",
-        "rows": [
-          "media-identity-read/do"
-        ],
-        "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (MediaManifestBytes trims a line mossManifest keeps, and both routes read their files again after hashing them). training-identity/do bound the identity to the media; media-identity-read/do binds it to the bytes the route reads, parsed as the route parses. Implemented 2026-11-27 by media-identity-read/do, the landing that carries this answer: MediaManifestBytes is gone; trainingworkflow.PictureManifest reads the MOSS manifest as the route parses it, the path kept as written, each picture once, and the route trains, judges and refuses held-out copies on those bytes, which the identity (MediaIdentity) and cmd/validate's grounding hash; the codec route reads its manifest and clips once (readClipCorpus) and refuses a clip whose bytes changed since admission before decoding it, ffmpeg decoding from the path (TestARouteIsIdentifiedByTheBytesItReads), for the review's recheck."
-      },
-      "SQA-502": {
-        "action": "implemented",
-        "rows": [
-          "measure-retry/do"
-        ],
-        "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (measurePhases runs the preflight and the lanes before reading the state that credits the cells and the publication, so a publication-only retry runs the lanes' 9 h again). close-launcher/do brought the closing run into the cycle (6862d5287); measure-retry/do credits a key's passed lanes on a retry. Implemented 2026-11-27 by measure-retry/do, the landing that carries this answer: the cycle's state keeps the lanes' pass for its key beside the cells' and the publication's, and a retry at that key credits the lanes, saying so; the preflight runs every time and lanes that failed run again (TestARetryRunsNoLanesItPassed), for the review's recheck."
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten in the working tree after efa59bd59: valid from source (codecRun.observed decodes the path admitted returns, so a clip replaced between admitted's reread and ffmpeg's open trains under the admitted identity). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The window needs a writer replacing a clip during a run's own decode; the corpus is read from the repository's fixtures and the operator's dataset, and no run has seen it. media-identity-read/do (ff47d11d6) closed what a corpus changed before or after admission does."
       },
       "SQA-494": {
-        "action": "implemented",
-        "rows": [
-          "landing-snapshot/do"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed at b1d6e237a (moss-page/restored published own-run's edit) and from source (shipSet recaptures the checkout at fix, derive and a lowered ceiling, the last after invariants). Filed as landing-snapshot/do, ahead of observed-inputs/rule, which keeps passes for a candidate's inputs. Implemented 2026-11-25 by landing-snapshot/do, the landing that carries this answer: a later capture stages onto the first and takes only what the gate's own stages wrote; any other later edit stays in the checkout for its own step, named (TestALandingPublishesTheTreeItFirstCaptured), for the review's recheck."
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 94747b889: valid from source (a later capture stages a gate-written path's current bytes, a later same-file edit among them). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. It needs an edit, during a landing, to the very file the gate's own format stage rewrote; the lead formats before landing, so the format stage writes nothing, and the form observed at b1d6e237a, another path, is closed."
       },
       "SQA-492": {
-        "action": "implemented",
-        "rows": [
-          "moss-pictures/output-input"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (Request.ReadPictures refuses every identity that is not KindFile, so a MOSS output used as input is refused before it is read); no failed draw observed. Filed as moss-pictures/output-input, before the campaign closes. Implemented 2026-11-24 by moss-pictures/output-input (63c8edbc5), for the review's recheck."
+        "action": "deferred",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa, which names another defect than the one answered before: valid from source (mediaCard fetches a picture's bytes before reuse, so two clicks whose fetches return out of order put the first picture in the slot; depthPreview can show the map of a picture switched away from). A served defect from source alone, not observed, so P3 by the severity rule agreed on 2026-11-13: deferred to the row that next touches internal/server/webui/composer.js or mod/generation.js, which fixes it there."
       },
       "SQA-474": {
-        "action": "implemented",
-        "rows": [
-          "own-record/do"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at 5f5d4db92, for the finding as rewritten at a25fa2246: valid from source (improvement.Measure answers with the newest record at the cycle's commit whoever published it, so Improve files an earlier cycle's gaps and Fill removes this cycle's state and credit). Not observed: the unattended cycle has not run since the measurements moved to validate -run phases. Filed as own-record/do after moss-page: Measure answers only with the record this cycle's publication wrote. Implemented 2026-11-25 by own-record/do, the landing that carries this answer (TestACycleCutShortAnswersWithNoScorecardItDidNotPublish), for the review's recheck."
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (Measure takes a record count that grew as its own publication). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. It needs a second publisher writing a scorecard of the same commit into the same store while a cycle checks its lanes; one cycle publishes to a store, and a hand publication is made with no cycle running."
       },
       "SQA-388": {
-        "action": "implemented",
-        "rows": [
-          "reference-tools/recorder"
-        ],
-        "note": "Answered again by the lead on 2026-11-22 at 47b3587c9: valid from source at the recorder (resume on request hash and prompt ID alone, memory sampled from a retry, kept files named by node and base name, a pair's prompt IDs never compared); filed as reference-tools/recorder. Implemented 2026-11-24 by reference-tools/recorder, the landing that carries this answer: the accepted prompt keeps its producer and a resume under another version, commit or model file is refused; a resumed run's memory is kept as resumed_peak_card_bytes, the run's peak unrecorded; a kept file's name holds its subfolder; the paired recordings' check requires two prompts (distinctRuns), for the review's recheck."
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (keep turns a subfolder's slash into a hyphen, so MOSS/a and MOSS-a collide). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The recorder's workflows write no two subfolders that differ only so, and no recording has collided."
       },
       "SQA-415": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "lanes-fixtures/do"
+          "lanes-deleted-fixture/do"
         ],
-        "note": "Answered by the lead on 2026-11-19: valid from source (a data path walks up to a closure package's directory, and the repository's fixtures/ is under none, so it reaches no lane); filed after lanes-verdict, ahead of the speed rows, since the MOSS goldens read fixtures/moss. Implemented 2026-11-19 by lanes-fixtures/do (c71a1e230), for the review's recheck."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 8eb8703de: valid from source (a deleted fixture is no tracked document, so its reader is reached by nothing and its kept pass stays current under -reached). A second round on lanes-fixtures/do, filed because deleting a fixture is ordinary work on the repository, which the lanes runner meets on the row that does it, and the lanes are the reliability the owner's review of 2026-11-25 asked for. Filed as lanes-deleted-fixture/do."
       },
       "SQA-346": {
-        "action": "implemented",
-        "rows": [
-          "observation-binding/do"
-        ],
-        "note": "Answered by the lead on 2026-11-13: filed, held-out readings credited to media they did not read. Implemented 2026-11-16 by observation-binding/do (d9afe59b3), for the review's recheck."
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (a ClipMotion observation is bound by the encoder's base name, not its checkpoint and decoding). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The motion encoder is one fixed checkpoint, never replaced under its name, and no reading was taken under other decoding settings."
       },
       "SQA-342": {
-        "action": "implemented",
-        "rows": [
-          "preset-evidence/statistic"
-        ],
-        "note": "Answered by the lead on 2026-11-13: filed after preset-readings, whose admissions it bears on; a held-out quality claim. Implemented 2026-11-16 by preset-evidence/statistic (9ed242b6c), for the review's recheck."
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid as arithmetic and source counterexamples (a sign test against a fair sign where guessing wins 5/9, means where the ranking is geometric, a resume checked by its last draw). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. No admitted preset is shown to change by them, and no reading a user is offered is shown wrong."
       },
       "SQA-283": {
-        "action": "implemented",
-        "rows": [
-          "execution-state/do"
-        ],
-        "note": "Reopened by the lead's recheck on 2026-11-13: run-from-files/do and recipe-state made the first repair, whose tests pass at f110d30b1, but the review's evidence names three publication owners that still read recipe state at publication and drop a lookup error, so an empty Verification earns the legacy path and a later activation can replace execution-time state. execution-state/do carries the state read at execution to publication. Implemented 2026-11-16 by execution-state/do (f7338b9b0), for the review's recheck."
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (servingattempt.Record reads the recipe's state at publication and leaves it empty when the store cannot answer, a choice its comment states). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. A store read failing between a serving attempt and its record, or the same recipe activated again inside that attempt, has not occurred in any run, and neither costs time."
       },
       "SQA-487": {
-        "action": "implemented",
+        "action": "declined",
+        "rows": [],
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 7e417691c: valid from source (holdWorktree returns no holder for a hook with no session_id, and beginTurn then clears the stop request). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. Every prompt hook the harness sends names its session; the nameless path is a fixture's, and no missed pause has been seen (the owner's stop of 2026-11-27 held)."
+      },
+      "SQA-518": {
+        "action": "filed",
         "rows": [
-          "stop-request-session/do"
+          "model-view-git/do"
         ],
-        "note": "Answered by the lead on 2026-11-24 at db04fec59: valid from source (every session's prompt writes or removes the one stop_request file, and stop words are matched by containment). Filed as stop-request-session. Implemented 2026-11-25 by stop-request-session/do, the landing that carries this answer: only the session that holds the worktree notes or clears a stop request, and a negated stop word asks for none (TestAStopRequestIsTheAskingSessions in cmd/loophook and internal/plan), for the review's recheck."
+        "note": "Answered by the lead on 2026-11-27 at efa59bd59: valid from source and the run's record (both walks in cmd/validate/cell_credit.go take every regular file under a model's directory, .git among them: 127 of 438 paths at efa59bd59, 15.65 GB, so a changed git log changes a cell's key and the obligations a retry is credited under). Filed as model-view-git/do, first, before the next measurement."
       }
     }
   },
-  "next_finding_number": 518,
+  "next_finding_number": 519,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

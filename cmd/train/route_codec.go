@@ -219,7 +219,7 @@ func (run codecRun) observed(ctx context.Context, manifest string) (err error) {
 	}
 	// The trainer steps the squared error from frames to the frames the pair
 	// gives back through its latent.
-	session, err := openSessionAs(ctx, run.store, run.resolved.Bridge, manifest,
+	session, err := openMediaSession(ctx, run.store, run.resolved.Bridge, manifest,
 		generationContract(trainingprogram.ObjectiveImageLatent, recipecontract.ModalityImage, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit))
 	if err != nil {
 		return err

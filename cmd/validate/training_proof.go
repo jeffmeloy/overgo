@@ -12,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // A training proof is the verification its activation accepted, and a
@@ -112,7 +113,13 @@ var operatorProofs = map[trainingprogram.ObjectiveKind]string{
 func groundTraining(ctx context.Context, root string, store *overgodb.Store, cells []ModelValidation) error {
 	grounded := map[artifact.ID]string{}
 	for _, route := range trainingRoutes {
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(route.grounding)))
+		// A route that trains from pictures is grounded on its manifest and the pictures it names, as cmd/train
+		// identifies its dataset (trainingworkflow.MediaManifestBytes, SQA-507).
+		read := os.ReadFile
+		if slices.Contains(route.arguments, "-pictures") {
+			read = trainingworkflow.MediaManifestBytes
+		}
+		data, err := read(filepath.Join(root, filepath.FromSlash(route.grounding)))
 		if err != nil {
 			return err
 		}

@@ -184,6 +184,27 @@ func recipeSession(ctx context.Context, store *overgodb.Store, weights, dataset 
 	if err != nil {
 		return routeSession{}, err
 	}
+	return recipeSessionOver(ctx, store, weights, data, contract)
+}
+
+// openMediaSession opens, as openSessionAs does, the session of a route whose manifest names media files, its dataset
+// identified by the manifest and the bytes of each file it names (trainingworkflow.MediaManifestBytes), so changed
+// media are another dataset (SQA-507).
+func openMediaSession(ctx context.Context, store *overgodb.Store, weights, manifest string, contract trainingworkflow.RecipeContract) (routeSession, error) {
+	data, err := trainingworkflow.MediaManifestBytes(manifest)
+	if err != nil {
+		return routeSession{}, err
+	}
+	session, err := recipeSessionOver(ctx, store, weights, data, contract)
+	if err != nil {
+		return routeSession{}, err
+	}
+	return session.admitted(ctx)
+}
+
+// recipeSessionOver binds the training recipe bootstrapped under contract over a dataset identified by data for the model
+// weights.
+func recipeSessionOver(ctx context.Context, store *overgodb.Store, weights string, data []byte, contract trainingworkflow.RecipeContract) (routeSession, error) {
 	recipeID, err := trainingworkflow.BootstrapRecipe(ctx, store, weights, data, contract)
 	if err != nil {
 		return routeSession{}, err

@@ -30,8 +30,8 @@ func TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 		return mossPicture{path: path, caption: name}
 	}
+	const side = 4
 	encode := func(level png.CompressionLevel, red uint8) []byte {
-		const side = 4
 		picture := image.NewRGBA(image.Rect(0, 0, side, side))
 		for y := range side {
 			for x := range side {
@@ -47,23 +47,24 @@ func TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture(t *testing.T) {
 	other := write("cat.png", encode(png.DefaultCompression, 120))
 	copies := map[string][]byte{"renamed.png": owl, "padded.png": append(slices.Clone(owl), 0), "reencoded.png": encode(png.NoCompression, 200)}
 	for name, data := range copies {
-		err := refuseTrainedHeldOut(trained, []mossPicture{other, write(name, data)})
+		err := refuseTrainedHeldOut(trained, []mossPicture{other, write(name, data)}, side)
 		if err == nil || !strings.Contains(err.Error(), name) || !strings.Contains(err.Error(), "owl.png") {
 			t.Fatalf("a held-out %s = %v, want it refused, naming both", name, err)
 		}
 	}
-	if err := refuseTrainedHeldOut(trained, []mossPicture{other}); err != nil {
+	if err := refuseTrainedHeldOut(trained, []mossPicture{other}, side); err != nil {
 		t.Fatalf("another picture = %v", err)
 	}
 	for _, unread := range []mossPicture{{path: filepath.Join(directory, "absent.png")}, write("text.png", []byte("no picture"))} {
-		if err := refuseTrainedHeldOut(trained, []mossPicture{unread}); err == nil {
+		if err := refuseTrainedHeldOut(trained, []mossPicture{unread}, side); err == nil {
 			t.Fatalf("a held-out picture that cannot be read or decoded, %s, passes", unread.path)
 		}
 	}
 }
 
 // TestAMOSSRunIsRefusedBeforeItsFirstPicture: what the files alone refuse is refused before a picture is prepared on the
-// device: a held-out picture that is a trained one with a byte appended, and a training grid shifted from the model's.
+// device: a held-out picture that is a trained one with a byte appended, one of another size than the run's (SQA-514),
+// and a training grid shifted from the model's.
 func TestAMOSSRunIsRefusedBeforeItsFirstPicture(t *testing.T) {
 	t.Parallel()
 	root, manifest := mossRouteFixture(t)
@@ -85,6 +86,13 @@ func TestAMOSSRunIsRefusedBeforeItsFirstPicture(t *testing.T) {
 	report := filepath.Join(t.TempDir(), "heldout.json")
 	if err := route("-heldout", held, "-report", report); err == nil || !strings.Contains(err.Error(), "is held out and holds the picture of") {
 		t.Fatalf("a held-out copy = %v, want it refused before preparation", err)
+	}
+	small := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	var encoded bytes.Buffer
+	testcheck.NoError(t, png.Encode(&encoded, small))
+	write(filepath.Join(directory, "held-0.png"), encoded.String())
+	if err := route("-heldout", held, "-report", report); err == nil || !strings.Contains(err.Error(), "held-0.png") || !strings.Contains(err.Error(), "not a picture of 32 square") {
+		t.Fatalf("a 16 by 16 held-out picture beside -size 32 = %v, want it refused, naming it and the size, before preparation", err)
 	}
 	scheduler := filepath.Join(root, "scheduler", "scheduler_config.json")
 	raw := testcheck.Must(os.ReadFile(scheduler))(t)

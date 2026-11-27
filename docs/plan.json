@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "training-identity",
-      "title": "A training route's dataset, split and processor identities bind the examples and preprocessing it consumes, not the manifest's bytes alone",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The MOSS route and the codec -frames route bind their training identity to the ordered media they read, so two corpora with one manifest text get two identities",
-          "verify": "go test ./cmd/train -count=1 -run '^TestTwoCorporaWithOneManifestTextAreTwoDatasets$'",
-          "files": [
-            "cmd/train",
-            "internal/trainingworkflow",
-            "cmd/validate"
-          ],
-          "rationale": "SQA-507 (P2), checked by the lead against cmd/train and internal/trainingworkflow at 7e417691c: valid from source, a proof that passes for a dataset it did not read. Both routes pass only the manifest path to openSessionAs; BootstrapRecipe takes TextAuthority of its bytes, so two directories with the same pictures.tsv and different pictures get one dataset, split, processor and recipe, and the validation proof (groundTraining) identifies the MOSS route by the TSV alone. No run with substituted media was observed.\n\nThe change: the dataset, split and processor identities bind the ordered examples and the preprocessing the route consumes, through the existing training workflow and artifact identities, so the same inputs keep their identity across directories and different media get another; the session, checkpoint and validation proof use it. First read every reader of the identity BootstrapRecipe gives.\n\nCheck: TestTwoCorporaWithOneManifestTextAreTwoDatasets, two directories with one pictures.tsv and red.png's contents differing: two dataset identities; the same media in two directories: one. It calls the route's bootstrap, which the base holds, so it builds there and fails on its assertion.\n\nNote: SQA-514 (P2), answered by the lead on 2026-11-27 at ab55e884d: valid from source. refuseTrainedHeldOut decodes each held-out picture (moss-heldout/do) and admits one whose decoded shape is not [3, size, size], a 16 x 16 picture beside -size 32, so trainMOSS prepares every training picture and caption on the card before the held-out encoder refuses it. At this admission point the change refuses a held-out picture whose decoded shape is not the run's size, naming its path and the size, with the check interleavedRows makes, before any device encoder opens; the route's test of a run refused before its first picture holds a 16 x 16 held-out picture too.",
-          "depends_on": [
-            "moss-close/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "agent-tool-errors",
       "title": "A tool call whose result says isError fails the call: its mutation is recorded failed and a failed inspection earns no credit, after a restart too",
       "steps": [

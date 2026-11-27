@@ -23,6 +23,7 @@ import (
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // fixtureCommit is the commit a fixture verification ran at.
@@ -72,8 +73,13 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 	}
 	trained := func(name, weights, grounding, alias string, kind trainingprogram.ObjectiveKind, metric trainingprogram.EvaluationMetric, modality recipecontract.Modality) ModelValidation {
 		data := []byte("data no route grounds")
+		// The MOSS route's dataset is its manifest and the pictures it names, as cmd/train identifies it (SQA-507).
+		read := os.ReadFile
+		if grounding == mossGrounding {
+			read = trainingworkflow.MediaManifestBytes
+		}
 		if grounding != "" {
-			if data, err = os.ReadFile(filepath.Join(root, filepath.FromSlash(grounding))); err != nil {
+			if data, err = read(filepath.Join(root, filepath.FromSlash(grounding))); err != nil {
 				t.Fatal(err)
 			}
 		}

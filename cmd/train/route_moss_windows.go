@@ -91,8 +91,10 @@ func mossManifest(manifest string) ([]mossPicture, error) {
 // its decoded size and values, which is what the encoder reads: a copy under another name, a path that differs only in
 // case, a file padded past its end or the same pixels encoded again is the same picture, and a held-out reading of it
 // would judge what was trained. By the files' bytes, a trained picture with one byte appended had passed as held out
-// (SQA-506). A picture that does not decode is refused here, before any is prepared on the device.
-func refuseTrainedHeldOut(trained, held []mossPicture) error {
+// (SQA-506). A picture that does not decode, or is not size by size, is refused here, as interleavedRows would refuse it,
+// before any is prepared on the device: a 16 by 16 held-out picture beside -size 32 had been refused only after every
+// training picture and caption was prepared (SQA-514).
+func refuseTrainedHeldOut(trained, held []mossPicture, size int) error {
 	process := trainingdata.ImageProcessor(trainingdata.RoleTarget)
 	digest := func(picture mossPicture) ([sha256.Size]byte, error) {
 		data, err := os.ReadFile(picture.path)
@@ -104,6 +106,9 @@ func refuseTrainedHeldOut(trained, held []mossPicture) error {
 			return [sha256.Size]byte{}, fmt.Errorf("picture %s: %w", picture.path, err)
 		}
 		value := example.Values[0]
+		if _, err := interleavedRows(value, size); err != nil {
+			return [sha256.Size]byte{}, fmt.Errorf("picture %s: %w", picture.path, err)
+		}
 		return sha256.Sum256(fmt.Appendf(nil, "%v\x00%s", value.Shape, value.Data)), nil
 	}
 	seen := make(map[[sha256.Size]byte]string, len(trained))
@@ -254,7 +259,7 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 		return err
 	}
 	defer store.Close()
-	session, err := openSessionAs(ctx, store, weights, *manifest,
+	session, err := openMediaSession(ctx, store, weights, *manifest,
 		generationContract(trainingprogram.ObjectiveFlowMatching, recipecontract.ModalityText, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit))
 	if err != nil {
 		return err
@@ -279,7 +284,7 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 		if held, err = mossManifest(*heldout); err != nil {
 			return err
 		}
-		if err := refuseTrainedHeldOut(pictures, held); err != nil {
+		if err := refuseTrainedHeldOut(pictures, held, *size); err != nil {
 			return fmt.Errorf("%s: %w", name, err)
 		}
 	}

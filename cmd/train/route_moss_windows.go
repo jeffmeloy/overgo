@@ -3,14 +3,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
 	"flag"
 	"fmt"
 	"math/rand/v2"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -57,35 +55,8 @@ type mossHeldout struct {
 	Trained  []float64 `json:"trained"`
 }
 
-// mossPicture is one line of a route manifest.
-type mossPicture struct {
-	path, caption string
-}
-
-// mossManifest reads a manifest of one picture and its caption per line,
-// tab-separated, the picture relative to the manifest.
-func mossManifest(manifest string) ([]mossPicture, error) {
-	raw, err := os.ReadFile(manifest)
-	if err != nil {
-		return nil, err
-	}
-	var pictures []mossPicture
-	for line := range bytes.Lines(raw) {
-		line = bytes.TrimRight(line, "\r\n")
-		if len(line) == 0 {
-			continue
-		}
-		path, caption, found := bytes.Cut(line, []byte{'\t'})
-		if !found || len(path) == 0 || len(caption) == 0 {
-			return nil, fmt.Errorf("manifest %s: a line needs a picture, a tab and a caption: %q", manifest, line)
-		}
-		pictures = append(pictures, mossPicture{path: filepath.Join(filepath.Dir(manifest), string(path)), caption: string(caption)})
-	}
-	if len(pictures) == 0 {
-		return nil, fmt.Errorf("manifest %s names no pictures", manifest)
-	}
-	return pictures, nil
-}
+// mossPicture is one line of a route manifest, its picture's bytes read once (trainingworkflow.PictureManifest).
+type mossPicture = trainingworkflow.ManifestPicture
 
 // refuseTrainedHeldOut refuses a held-out picture the run also trains on, by what the image processor gives for each,
 // its decoded size and values, which is what the encoder reads: a copy under another name, a path that differs only in
@@ -97,17 +68,13 @@ func mossManifest(manifest string) ([]mossPicture, error) {
 func refuseTrainedHeldOut(trained, held []mossPicture, size int) error {
 	process := trainingdata.ImageProcessor(trainingdata.RoleTarget)
 	digest := func(picture mossPicture) ([sha256.Size]byte, error) {
-		data, err := os.ReadFile(picture.path)
+		example, err := process(context.Background(), trainingdata.RawRecord{ID: picture.Path, Group: picture.Path, Data: picture.Data})
 		if err != nil {
-			return [sha256.Size]byte{}, err
-		}
-		example, err := process(context.Background(), trainingdata.RawRecord{ID: picture.path, Group: picture.path, Data: data})
-		if err != nil {
-			return [sha256.Size]byte{}, fmt.Errorf("picture %s: %w", picture.path, err)
+			return [sha256.Size]byte{}, fmt.Errorf("picture %s: %w", picture.Path, err)
 		}
 		value := example.Values[0]
 		if _, err := interleavedRows(value, size); err != nil {
-			return [sha256.Size]byte{}, fmt.Errorf("picture %s: %w", picture.path, err)
+			return [sha256.Size]byte{}, fmt.Errorf("picture %s: %w", picture.Path, err)
 		}
 		return sha256.Sum256(fmt.Appendf(nil, "%v\x00%s", value.Shape, value.Data)), nil
 	}
@@ -117,7 +84,7 @@ func refuseTrainedHeldOut(trained, held []mossPicture, size int) error {
 		if err != nil {
 			return err
 		}
-		seen[sum] = picture.path
+		seen[sum] = picture.Path
 	}
 	for _, picture := range held {
 		sum, err := digest(picture)
@@ -125,7 +92,7 @@ func refuseTrainedHeldOut(trained, held []mossPicture, size int) error {
 			return err
 		}
 		if path, found := seen[sum]; found {
-			return fmt.Errorf("%s is held out and holds the picture of %s, which is trained on", picture.path, path)
+			return fmt.Errorf("%s is held out and holds the picture of %s, which is trained on", picture.Path, path)
 		}
 	}
 	return nil
@@ -143,21 +110,18 @@ func mossPrepare(ctx context.Context, root string, profile latentimage.Profile, 
 	process := trainingdata.ImageProcessor(trainingdata.RoleTarget)
 	examples := make([]mosstrain.Example, len(pictures))
 	for index, picture := range pictures {
-		data, err := os.ReadFile(picture.path)
+		// The bytes admitted with the manifest, which its identity hashed, are the bytes trained on (SQA-507).
+		example, err := process(ctx, trainingdata.RawRecord{ID: picture.Path, Group: picture.Path, Data: picture.Data})
 		if err != nil {
-			return nil, mosstrain.Geometry{}, err
-		}
-		example, err := process(ctx, trainingdata.RawRecord{ID: picture.path, Group: picture.path, Data: data})
-		if err != nil {
-			return nil, mosstrain.Geometry{}, fmt.Errorf("picture %s: %w", picture.path, err)
+			return nil, mosstrain.Geometry{}, fmt.Errorf("picture %s: %w", picture.Path, err)
 		}
 		pixels, err := interleavedRows(example.Values[0], size)
 		if err != nil {
-			return nil, mosstrain.Geometry{}, fmt.Errorf("picture %s: %w", picture.path, err)
+			return nil, mosstrain.Geometry{}, fmt.Errorf("picture %s: %w", picture.Path, err)
 		}
 		latent, height, width, err := encoder.Encode(ctx, pixels)
 		if err != nil {
-			return nil, mosstrain.Geometry{}, fmt.Errorf("picture %s: %w", picture.path, err)
+			return nil, mosstrain.Geometry{}, fmt.Errorf("picture %s: %w", picture.Path, err)
 		}
 		examples[index] = mosstrain.Example{Geometry: mosstrain.Geometry{Height: height, Width: width}, Latent: latent}
 	}
@@ -171,9 +135,9 @@ func mossPrepare(ctx context.Context, root string, profile latentimage.Profile, 
 	defer conditioner.Close(context.WithoutCancel(ctx))
 	var largest mosstrain.Geometry
 	for index, picture := range pictures {
-		refined, tokens, err := conditioner.Refine(ctx, picture.caption)
+		refined, tokens, err := conditioner.Refine(ctx, picture.Caption)
 		if err != nil {
-			return nil, mosstrain.Geometry{}, fmt.Errorf("caption of %s: %w", picture.path, err)
+			return nil, mosstrain.Geometry{}, fmt.Errorf("caption of %s: %w", picture.Path, err)
 		}
 		examples[index].Refined, examples[index].Geometry.Text = refined, tokens
 		largest = mosstrain.Geometry{Height: examples[index].Geometry.Height, Width: examples[index].Geometry.Width, Text: max(largest.Text, tokens)}
@@ -236,7 +200,7 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 	if (*heldout == "") != (*report == "") {
 		return fmt.Errorf("%s: -heldout and -report go together", name)
 	}
-	pictures, err := mossManifest(*manifest)
+	pictures, identity, err := trainingworkflow.PictureManifest(*manifest)
 	if err != nil {
 		return err
 	}
@@ -259,7 +223,7 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 		return err
 	}
 	defer store.Close()
-	session, err := openMediaSession(ctx, store, weights, *manifest,
+	session, err := openSessionOver(ctx, store, weights, identity,
 		generationContract(trainingprogram.ObjectiveFlowMatching, recipecontract.ModalityText, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit))
 	if err != nil {
 		return err
@@ -281,7 +245,7 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 	}
 	var held []mossPicture
 	if *heldout != "" {
-		if held, err = mossManifest(*heldout); err != nil {
+		if held, _, err = trainingworkflow.PictureManifest(*heldout); err != nil {
 			return err
 		}
 		if err := refuseTrainedHeldOut(pictures, held, *size); err != nil {
@@ -298,7 +262,7 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 	var reading mossHeldout
 	if *heldout != "" {
 		for _, picture := range held {
-			reading.Pictures = append(reading.Pictures, filepath.Base(picture.path))
+			reading.Pictures = append(reading.Pictures, filepath.Base(picture.Path))
 		}
 		var bound mosstrain.Geometry
 		if judged, bound, err = mossPrepare(ctx, directory, profile, held, *size); err != nil {

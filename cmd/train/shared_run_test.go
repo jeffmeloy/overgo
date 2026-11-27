@@ -125,7 +125,7 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 	t.Run("a held-out run's publications", func(t *testing.T) {
 		root, store, modelPath, datasetPath := routeFixture(t)
 		ctx := t.Context()
-		session := testcheck.Must(recipeSession(ctx, store, modelPath, datasetPath, trainingworkflow.TokenContract))(t)
+		session := testcheck.Must(recipeSessionOver(ctx, store, modelPath, testcheck.Must(os.ReadFile(datasetPath))(t), trainingworkflow.TokenContract))(t)
 		config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(testMatrix.End))(t)
 		matrix := newHostMatrix(t, session.authority.Objective, config)
 		for name, publish := range map[string]func(target string, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error){

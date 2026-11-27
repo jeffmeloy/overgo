@@ -165,36 +165,20 @@ func openSession(ctx context.Context, store *overgodb.Store, weights, dataset st
 	return openSessionAs(ctx, store, weights, dataset, trainingworkflow.TokenContract)
 }
 
-// openSessionAs publishes the training recipe whose bootstrap objective
-// declares contract over the dataset for the model weights, and admits the
-// session before any weight touches memory. A route opens under the
-// contract its trainer steps.
+// openSessionAs opens, as openSessionOver does, the session of a dataset file, identified by its bytes.
 func openSessionAs(ctx context.Context, store *overgodb.Store, weights, dataset string, contract trainingworkflow.RecipeContract) (routeSession, error) {
-	session, err := recipeSession(ctx, store, weights, dataset, contract)
-	if err != nil {
-		return routeSession{}, err
-	}
-	return session.admitted(ctx)
-}
-
-// recipeSession binds the training recipe bootstrapped under contract over
-// the dataset for the model weights; it supervises nothing until admitted.
-func recipeSession(ctx context.Context, store *overgodb.Store, weights, dataset string, contract trainingworkflow.RecipeContract) (routeSession, error) {
 	data, err := os.ReadFile(dataset)
 	if err != nil {
 		return routeSession{}, err
 	}
-	return recipeSessionOver(ctx, store, weights, data, contract)
+	return openSessionOver(ctx, store, weights, data, contract)
 }
 
-// openMediaSession opens, as openSessionAs does, the session of a route whose manifest names media files, its dataset
-// identified by the manifest and the bytes of each file it names (trainingworkflow.MediaManifestBytes), so changed
-// media are another dataset (SQA-507).
-func openMediaSession(ctx context.Context, store *overgodb.Store, weights, manifest string, contract trainingworkflow.RecipeContract) (routeSession, error) {
-	data, err := trainingworkflow.MediaManifestBytes(manifest)
-	if err != nil {
-		return routeSession{}, err
-	}
+// openSessionOver publishes the training recipe whose bootstrap objective declares contract over a dataset identified by
+// data for the model weights, and admits the session before any weight touches memory. A route opens under the contract
+// its trainer steps; a route whose manifest names media files gives the bytes it read them as
+// (trainingworkflow.MediaIdentity), so changed media are another dataset (SQA-507).
+func openSessionOver(ctx context.Context, store *overgodb.Store, weights string, data []byte, contract trainingworkflow.RecipeContract) (routeSession, error) {
 	session, err := recipeSessionOver(ctx, store, weights, data, contract)
 	if err != nil {
 		return routeSession{}, err

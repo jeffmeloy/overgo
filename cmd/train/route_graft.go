@@ -168,7 +168,11 @@ func bridgeSession(ctx context.Context, store *overgodb.Store, targetDir, tokens
 	if err != nil {
 		return routeSession{}, err
 	}
-	return recipeSession(ctx, store, weights, tokensPath, trainingworkflow.TokenContract)
+	tokens, err := os.ReadFile(tokensPath)
+	if err != nil {
+		return routeSession{}, err
+	}
+	return recipeSessionOver(ctx, store, weights, tokens, trainingworkflow.TokenContract)
 }
 
 // publishBridges publishes each seed's trained bridge as a checkpoint in its

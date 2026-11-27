@@ -19,8 +19,8 @@ import (
 // TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture: a held-out picture whose model input is a trained one's is refused,
 // naming both: a copy under another name, the file with one byte appended past its end, and the same pixels encoded
 // again. By the files' bytes the last two had passed as held out, the route's own test holding the padded copy as its
-// held-out picture (SQA-506). Another picture passes, and so does a manifest of one; a picture that cannot be read or
-// decoded is refused.
+// held-out picture (SQA-506). Another picture passes, and so does a manifest of one; a picture with no bytes, or bytes
+// that do not decode, is refused.
 func TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
@@ -28,7 +28,7 @@ func TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture(t *testing.T) {
 		t.Helper()
 		path := filepath.Join(directory, name)
 		testcheck.NoError(t, os.WriteFile(path, data, 0o600))
-		return mossPicture{path: path, caption: name}
+		return mossPicture{Path: path, Caption: name, Data: data}
 	}
 	const side = 4
 	encode := func(level png.CompressionLevel, red uint8) []byte {
@@ -55,9 +55,9 @@ func TestMOSSRouteRefusesAHeldOutCopyOfATrainedPicture(t *testing.T) {
 	if err := refuseTrainedHeldOut(trained, []mossPicture{other}, side); err != nil {
 		t.Fatalf("another picture = %v", err)
 	}
-	for _, unread := range []mossPicture{{path: filepath.Join(directory, "absent.png")}, write("text.png", []byte("no picture"))} {
+	for _, unread := range []mossPicture{{Path: filepath.Join(directory, "empty.png")}, write("text.png", []byte("no picture"))} {
 		if err := refuseTrainedHeldOut(trained, []mossPicture{unread}, side); err == nil {
-			t.Fatalf("a held-out picture that cannot be read or decoded, %s, passes", unread.path)
+			t.Fatalf("a held-out picture whose bytes do not decode, %s, passes", unread.Path)
 		}
 	}
 }

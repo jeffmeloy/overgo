@@ -114,10 +114,13 @@ func groundTraining(ctx context.Context, root string, store *overgodb.Store, cel
 	grounded := map[artifact.ID]string{}
 	for _, route := range trainingRoutes {
 		// A route that trains from pictures is grounded on its manifest and the pictures it names, as cmd/train
-		// identifies its dataset (trainingworkflow.MediaManifestBytes, SQA-507).
+		// identifies its dataset (trainingworkflow.PictureManifest, SQA-507).
 		read := os.ReadFile
 		if slices.Contains(route.arguments, "-pictures") {
-			read = trainingworkflow.MediaManifestBytes
+			read = func(path string) ([]byte, error) {
+				_, identity, err := trainingworkflow.PictureManifest(path)
+				return identity, err
+			}
 		}
 		data, err := read(filepath.Join(root, filepath.FromSlash(route.grounding)))
 		if err != nil {

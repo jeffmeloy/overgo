@@ -196,11 +196,11 @@
     "head": "ef97df5841d92b107f9fcaeb74500f4d99cc1d34",
     "findings": {
       "SQA-517": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "lanes-required/do"
         ],
-        "note": "Answered by the lead on 2026-11-27 at ef97df584: valid from source, a check that passes without checking (lanesPassedAt, which the lead wrote in lanes-record/record, counts only the results the record holds, so a required test with no result goes unseen and a deleted test's failure stays). Filed as lanes-required/do."
+        "note": "Answered by the lead on 2026-11-27 at ef97df584: valid from source, a check that passes without checking (lanesPassedAt, which the lead wrote in lanes-record/record, counts only the results the record holds, so a required test with no result goes unseen and a deleted test's failure stays). Filed as lanes-required/do. Implemented 2026-11-27 by lanes-required/do (fde0c1d4f): lanesPassedAt judges each lane by the tests its packages list, as the runner's steps list them, so a listed test with no current pass leaves the lane unpassed and a result for a test no longer listed is not read, for the review's recheck."
       },
       "SQA-516": {
         "action": "filed",
@@ -214,7 +214,7 @@
         "rows": [
           "media-identity-read/do"
         ],
-        "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (MediaManifestBytes trims a line mossManifest keeps, and both routes read their files again after hashing them). training-identity/do bound the identity to the media; media-identity-read/do binds it to the bytes the route reads, parsed as the route parses."
+        "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (MediaManifestBytes trims a line mossManifest keeps, and both routes read their files again after hashing them). training-identity/do bound the identity to the media; media-identity-read/do binds it to the bytes the route reads, parsed as the route parses. Implemented 2026-11-27 by media-identity-read/do, the landing that carries this answer: MediaManifestBytes is gone; trainingworkflow.PictureManifest reads the MOSS manifest as the route parses it, the path kept as written, each picture once, and the route trains, judges and refuses held-out copies on those bytes, which the identity (MediaIdentity) and cmd/validate's grounding hash; the codec route reads its manifest and clips once (readClipCorpus) and refuses a clip whose bytes changed since admission before decoding it, ffmpeg decoding from the path (TestARouteIsIdentifiedByTheBytesItReads), for the review's recheck."
       },
       "SQA-502": {
         "action": "filed",

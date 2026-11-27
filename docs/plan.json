@@ -3,23 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "media-identity-read",
-      "title": "A media route is identified by the bytes it reads, parsed as it parses its manifest, and reads them once",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The MOSS and codec routes hash the files their own manifest reading names, and train and judge on the bytes they hashed",
-          "verify": "go test ./cmd/train -count=1 -run '^TestARouteIsIdentifiedByTheBytesItReads$'",
-          "files": [
-            "cmd/train",
-            "internal/trainingworkflow",
-            "cmd/validate"
-          ],
-          "rationale": "SQA-507 (P2), reopened by the review at 07a7a7185 and checked by the lead against cmd/train and internal/trainingworkflow at ef97df584: valid from source. MediaManifestBytes trims each line before taking its path, while mossManifest keeps a leading space, so a line ' red.png' is hashed as red.png and trained as ' red.png'; and MOSS reopens its held-out pictures, the codec route its clips, after the identity was taken, comparing neither reread with what was hashed. The change: the identity is taken from the paths each route's own manifest reading gives and from the bytes it then reads, which the route keeps and trains and judges on, so no file is read twice. First read every reread of a manifest's files.\n\nCheck: TestARouteIsIdentifiedByTheBytesItReads, a manifest line with a leading space and a file changed after admission: the identity names the bytes trained on."
-        }
-      ]
-    },
-    {
       "id": "measure-retry",
       "title": "A measurement retried at the same key runs no lanes it has passed, so a publication-only retry takes minutes, not the lanes' hours",
       "steps": [

@@ -210,16 +210,16 @@ func (run codecRun) savePair(trainer *rae.BridgeTrainer) error {
 // is read, the run is held to the loss of its first batch, and the trained
 // bridge publishes as a checkpoint.
 func (run codecRun) observed(ctx context.Context, manifest string) (err error) {
-	clips, err := manifestLines(manifest)
+	corpus, err := readClipCorpus(manifest)
 	if err != nil {
 		return err
 	}
-	if len(clips) < run.batch {
-		return fmt.Errorf("%s: the manifest names %d clips, fewer than one batch of %d", run.name, len(clips), run.batch)
+	if len(corpus.clips) < run.batch {
+		return fmt.Errorf("%s: the manifest names %d clips, fewer than one batch of %d", run.name, len(corpus.clips), run.batch)
 	}
 	// The trainer steps the squared error from frames to the frames the pair
 	// gives back through its latent.
-	session, err := openMediaSession(ctx, run.store, run.resolved.Bridge, manifest,
+	session, err := openSessionOver(ctx, run.store, run.resolved.Bridge, corpus.identity,
 		generationContract(trainingprogram.ObjectiveImageLatent, recipecontract.ModalityImage, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit))
 	if err != nil {
 		return err
@@ -230,9 +230,13 @@ func (run codecRun) observed(ctx context.Context, manifest string) (err error) {
 		return err
 	}
 	side := parts.collection.Side()
-	examples := make([]rae.BridgeExample, len(clips))
-	for index, clip := range clips {
-		cut, err := clipFirstFrame(ctx, filepath.Join(filepath.Dir(manifest), clip), side)
+	examples := make([]rae.BridgeExample, len(corpus.clips))
+	for index := range corpus.clips {
+		path, err := corpus.admitted(index)
+		if err != nil {
+			return fmt.Errorf("%s: %w", run.name, err)
+		}
+		cut, err := clipFirstFrame(ctx, path, side)
 		if err != nil {
 			return err
 		}
@@ -415,7 +419,7 @@ func pictureSourceTokens(source *vitencoder.Encoder, picture []float32, side int
 // to the pair's size with its proportions kept, as a PNG picture named after
 // the clip: the directory then registers as a picture dataset.
 func cutCodecPictures(ctx context.Context, route string, resolved rae.BridgedPair, manifest, directory string) error {
-	clips, err := manifestLines(manifest)
+	clips, _, err := manifestLines(manifest)
 	if err != nil {
 		return err
 	}
@@ -472,11 +476,11 @@ func firstOperation(operations []string) (string, bool) {
 	return operations[0], true
 }
 
-// manifestLines reads the names a manifest lists, one per line.
-func manifestLines(manifest string) ([]string, error) {
+// manifestLines reads the names a manifest lists, one per line, and the manifest's bytes it read them from.
+func manifestLines(manifest string) ([]string, []byte, error) {
 	raw, err := os.ReadFile(manifest)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var names []string
 	for line := range bytes.Lines(raw) {
@@ -485,7 +489,45 @@ func manifestLines(manifest string) ([]string, error) {
 		}
 	}
 	if len(names) == 0 {
-		return nil, fmt.Errorf("manifest %s names no clips", manifest)
+		return nil, nil, fmt.Errorf("manifest %s names no clips", manifest)
 	}
-	return names, nil
+	return names, raw, nil
+}
+
+// clipCorpus is a clip manifest read once: the clips it names, each beside the manifest, the bytes the corpus is
+// identified by (trainingworkflow.MediaIdentity over the manifest and each clip as read here), and each clip's digest.
+type clipCorpus struct {
+	directory string
+	clips     []string
+	identity  []byte
+	digests   [][sha256.Size]byte
+}
+
+// readClipCorpus reads a clip manifest and each clip it names once, parsed as the codec route parses it (SQA-507).
+func readClipCorpus(manifest string) (clipCorpus, error) {
+	clips, raw, err := manifestLines(manifest)
+	if err != nil {
+		return clipCorpus{}, err
+	}
+	corpus := clipCorpus{directory: filepath.Dir(manifest), clips: clips, digests: make([][sha256.Size]byte, len(clips))}
+	files := make([][]byte, len(clips))
+	for index, clip := range clips {
+		if files[index], err = os.ReadFile(filepath.Join(corpus.directory, clip)); err != nil {
+			return clipCorpus{}, err
+		}
+		corpus.digests[index] = sha256.Sum256(files[index])
+	}
+	corpus.identity = trainingworkflow.MediaIdentity(raw, files)
+	return corpus, nil
+}
+
+// admitted is the path of the corpus's clip at index, to be decoded, once the clip read again is still the bytes the
+// corpus was identified by: a clip changed after admission is refused, not trained under the admitted identity.
+func (corpus clipCorpus) admitted(index int) (string, error) {
+	path := filepath.Join(corpus.directory, corpus.clips[index])
+	now, err := os.ReadFile(path)
+	if err != nil || sha256.Sum256(now) != corpus.digests[index] {
+		return "", errors.Join(fmt.Errorf("clip %s is not the clip admitted", corpus.clips[index]), err)
+	}
+	return path, nil
 }

@@ -76,7 +76,10 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 		// The MOSS route's dataset is its manifest and the pictures it names, as cmd/train identifies it (SQA-507).
 		read := os.ReadFile
 		if grounding == mossGrounding {
-			read = trainingworkflow.MediaManifestBytes
+			read = func(path string) ([]byte, error) {
+				_, identity, err := trainingworkflow.PictureManifest(path)
+				return identity, err
+			}
 		}
 		if grounding != "" {
 			if data, err = read(filepath.Join(root, filepath.FromSlash(grounding))); err != nil {

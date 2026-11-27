@@ -1,34 +1,56 @@
 package plan
 
-import "time"
+import (
+	"path/filepath"
+	"time"
 
-// TestPass is where a test last passed: the commit the run that passed it read, and when that run ended.
-type TestPass struct {
+	"overgo/internal/jsonfile"
+	"overgo/internal/processlock"
+)
+
+// TestResult is a test's last result: the commit the run that ran it read, whether it failed, and when it ended. It is
+// the one record of what the slow tests proved (lanes-record): a lane's pass and its packages' passes had been kept
+// beside it, at units coarser than the test the run works in, so a run cut short kept no package pass and every close
+// ran its tests again (TestMOSSGenerationCheckpoint in 7 runs on 2026-11-24 and 25).
+type TestResult struct {
 	Commit string    `json:"commit"`
+	Failed bool      `json:"failed,omitzero"`
 	Ended  time.Time `json:"ended"`
 }
 
-// testPassesFile keeps each test's last pass in the trunk checkout's state, beside the lanes' record, which a landing
-// and a run of the cycle's lanes from another checkout write too.
-const testPassesFile = "test_passes.json"
+// testResultsFile keeps each test's last result in the trunk checkout's state, which a landing and a run of the cycle's
+// lanes from another checkout write too; it kept passes alone before, which read as results that did not fail.
+const testResultsFile = "test_passes.json"
 
-// PassedTest names a test as its pass is kept: its package's import path, a space, and its name.
+// PassedTest names a test as its result is kept: its package's import path, a space, and its name; a lane run whole
+// is kept as LaneTest names it.
 func PassedTest(pkg, test string) string { return pkg + " " + test }
 
-// ReadTestPasses reads each test's last pass kept at root, by PassedTest; none where nothing is kept or it cannot be
-// read.
-func ReadTestPasses(root string) map[string]TestPass { return readKept[TestPass](root, testPassesFile) }
+// LaneTest names a cycle lane run whole as its result is kept, beside the tests of the lanes run test by test.
+func LaneTest(lane string) string { return "cycle lane " + lane }
 
-// RecordTestPasses keeps pass as the last pass of each test named (PassedTest) at root (single-source/claim-record): a
-// claim's test had been run again by every landing whose change moved a source the claim bound, in the fix stage and
-// in an environment of its own, to rebind it; its last pass, wherever it ran, is now what a claim reads.
-func RecordTestPasses(root string, pass TestPass, tests []string) error {
+// ReadTestResults reads each test's last result kept at root, by PassedTest; none where nothing is kept or it cannot
+// be read.
+func ReadTestResults(root string) map[string]TestResult {
+	kept := map[string]TestResult{}
+	if jsonfile.Decode(filepath.Join(root, processlock.StateDirectory, testResultsFile), &kept) != nil {
+		return map[string]TestResult{}
+	}
+	return kept
+}
+
+// RecordTestResults keeps result as the last result of each test named (PassedTest) at root, as each ends, so a run
+// cut short or yielded keeps what it ran (single-source/claim-record, lanes-record).
+func RecordTestResults(root string, result TestResult, tests ...string) error {
 	if len(tests) == 0 {
 		return nil
 	}
-	passes := ReadTestPasses(root)
+	results := ReadTestResults(root)
 	for _, test := range tests {
-		passes[test] = pass
+		results[test] = result
 	}
-	return writeKept(root, testPassesFile, passes)
+	if err := processlock.EnsureStateDirectory(root); err != nil {
+		return err
+	}
+	return jsonfile.Write(filepath.Join(root, processlock.StateDirectory, testResultsFile), results, runRecordMode)
 }

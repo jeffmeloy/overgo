@@ -7,26 +7,10 @@
       "title": "A slow test runs again only when what its package reads changed since its last result, and one runner at a time runs the lanes",
       "class": "consolidation",
       "budget": {
-        "nodes": -1100,
+        "nodes": 493,
         "reason": "Set from the row's removal list at the owner's review of 2026-11-25, counted as the landing counts (ast nodes of production Go, tmp/lanes-record/nodes.go at 7e417691c): lanes_first.go 973 less its yield to a newer commit, which stays (runnerYield, yieldTo, yields, lanesYield: 200), reachedLanes 363, changedSinceLastPass 79, leastRecentlyRunFirst 75, laneNames 38, keepLaneRun 184, and plan's LaneRun, LaneRecord, laneRunsFile, ReadLaneRuns, RecordLaneRun, RecordLanePackages, LanesYieldedFile and LanesYielded 218: 1,730 removed. Less at most 630 added: the record's result and its write as each test ends (about 100 over test_passes.go's 124, which becomes the one record), the rule (about 450, the size of the reach and diff code it replaces) and the status and -lanes-passed-at read from the test record (about 80). The row must shrink production by at least 1,100 nodes."
       },
       "steps": [
-        {
-          "id": "record",
-          "title": "Each slow test's last result is kept with its commit as it ends, and a close's run is the tests whose result is a failure, missing, or older than a change its package reads",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestALaneTestRunsAgainOnlyWhenWhatItReadsChanged$'",
-          "files": [
-            "cmd/validate",
-            "cmd/loop",
-            "internal/plan",
-            "internal/landing"
-          ],
-          "rationale": "The owner's review of 2026-11-25, point 1, checked by the lead against the code and the logs at 7e417691c: valid. A lane runs test by test (testSteps, 2,454 steps in the models lane) in an order that interleaves packages (rank sorts every package's steps together), but what a close reads its reach from is kept per lane (lane_runs.json Passed) and per package (Packages, written only when every step of the package ran: laneVerdict counts a yielded step as no pass), while the per-test pass (test_passes.json) feeds only passedSince. Measured: since 16:44 on 2026-11-24, 16 runs kept a new package pass for 2 of the models lane's 33 packages (latentvideo at 11336eb42, thoughtbank at c21345fd7); latentimage's last is 5f5d4db92's; TestMOSSGenerationCheckpoint passed in 7 of those runs (19:12 to 04:03, about 5.5 min each), and between three of them only docs, cmd/loop, internal/landing, internal/server, internal/webuilane and internal/audioparity changed, none of which latentimage's tests read. lanes_first.go's rank puts every changed package's checkpoint tests first at each run, read from the commits since the lane's last whole pass (3fe41bfa0, 2026-11-24 03:31), and passedSince filters only the landed checks' tests. Five rows have patched this mechanism (lanes-first, lanes-first-kept, lanes-package-pass, lanes-yield, lanes-order), each adding a record or an order beside the unit the run works in.\n\nThe change, in place of further patches: one record, each test's last result (pass or fail) with its commit and end, written as the test ends, so a yield or a run ended by hand loses nothing; the landings' passes (internal/landing, single-source/claim-record) and -passed-since read and write the same record. One rule: a close's run of a lane takes a test when its last result is not a pass, is missing, or is at a commit since which the changed paths enter its package's test closure (landing.CycleLanesReached, one diff per distinct commit); the tests are taken in the lane's own order. A measurement's lanes phase (validate -run -lanes without -reached) runs every test and writes the same record. Removed with it: lanes_first.go (readLanesFirst, rank, passedSince, testsOfCheck), leastRecentlyRunFirst and laneNames, LaneRecord with its Packages and RecordLanePackages, reachedLanes' package cut and changedSinceLastPass, and LanesYielded with lanes_yielded.json; the status and -lanes-passed-at read the test record (a lane passed whole at a commit when every test of it holds a pass there or one no change since reaches). First read every reader of lane_runs.json, test_passes.json and lanes_yielded.json.\n\nCheck: TestALaneTestRunsAgainOnlyWhenWhatItReadsChanged, over a repository fixture: a lane's test that passed at a commit is not taken when only paths outside its package's closure changed since, is taken when a path inside it changed, and a failed or unrecorded test is taken; written against code the base holds, so it builds there and fails on its assertion.",
-          "depends_on": [
-            "moss-close/run",
-            "close-launcher/do"
-          ]
-        },
         {
           "id": "one-runner",
           "title": "A measurement's lanes phase holds the lanes lock the close's runner holds, so a close during it runs after it with only what later commits reach",

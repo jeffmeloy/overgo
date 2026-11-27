@@ -1,40 +1,24 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I recommend close-launcher/do first (SQA-502). The November 25 run spent 9 h 14 min in lanes. Admitting the hand-started close fixes one way to lose completed work. A publication-only retry still reruns lanes. Before the next full close, I would also check that a concurrent publication cannot clear this run’s retry credit (SQA-474).",
-    "I would handle deleted fixtures (SQA-415) within lanes-record/record. Its proposed reuse rule relies on the same reader lookup that skips a missing MOSS or Needle fixture. The plan records seven passes of the MOSS checkpoint test at about 5.5 minutes each. Valid reuse saves repeated work only if a changed input invalidates its pass.",
-    "The working plan already puts moss-encoder-zeros/do (SQA-515) after the launcher. Its 100.5 MiB of avoidable uploads per cold guided encode follows from the source. Wall-time savings await a comparable run. Before the next MOSS training proof I would finish training-identity/do (SQA-507), which also owns the held-out size check."
+    "For time to commit, I would narrow the early gate to checks that can reject the candidate cheaply, then run the remaining integration coverage once (SQA-516). On November 27 three landings spent about 48 of 54 minutes in invariants and general tests. Judge a change by elapsed time to the first failure and to a successful landing. Parallel test durations cannot be added as savings.",
+    "I would finish lanes-record/record with the deleted-fixture case (SQA-415). It addresses repeated slow tests after a commit. Its reuse rule needs to rerun the reader when a fixture disappears. The proposed per-test record leaves the ordinary commit gate's two overlapping host stages in place.",
+    "Before the next full measurement I would settle publication-only retry (SQA-502) and which run owns a publication (SQA-474). Before the next training proof, training-identity/do owns media identity and held-out admission (SQA-507)."
   ],
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-502",
+      "id": "SQA-516",
       "severity": "P2",
       "files": [
-        "cmd/loop/trigger.go",
-        "cmd/loop/improve.go",
-        "cmd/loop/trigger_test.go",
-        "cmd/loop/improve_resume_test.go",
-        "cmd/validate/cell_credit.go",
-        "internal/landing/lanes.go"
+        "internal/landing/landing.go",
+        "internal/landing/wholetree.go",
+        "internal/landing/ceilings.go",
+        "internal/landing/scorecard_test.go"
       ],
-      "input": "With an earlier scorecard and changes to measured code, dispatch a step that requires a full scorecard. Interrupt its hand-started measurement after one completed cell. For the cycle runner itself, let only publication fail after all checks and cells pass, then retry with the same commit, store and obligations.",
-      "expected": "Use the existing cycle runner for a requested full measurement. Reuse completed cells under that run's identity. A publication-only retry may reuse the run's verified prerequisites when their inputs still match.",
-      "actual": "HandStartDue refuses the closing step. The November 25 launcher called validate directly, without the cycle's cell credit or execution identity. In the cycle runner, measurePhases reruns preflight and lanes even when only publication failed. The retained run spent 9 h 14 min 23 s in lanes. The repeated work follows from source; its retry duration was not measured."
-    },
-    {
-      "id": "SQA-474",
-      "severity": "P2",
-      "files": [
-        "cmd/loop/improve.go",
-        "internal/loop/driver.go",
-        "cmd/validate/scorecard.go",
-        "cmd/loop/improve_test.go",
-        "cmd/loop/improve_resume_test.go"
-      ],
-      "input": "While cycle C is checking its lanes, let another publisher write a scorecard for the same commit into the same store on a later clock second. Let C fail a required lane before it publishes.",
-      "expected": "C returns the lane error and keeps its retry state. Only a publication produced or explicitly credited by C supplies its proposals and permits Fill to clear that state. The existing publisher reports the path it wrote.",
-      "actual": "Measure treats an increase in the directory's record count as proof of publication and returns the newest record if its commit matches. Improve proposes from that record and calls Fill even with the lane error. Fill removes C's phase and cell credit. This follows from source. The retained case with an unchanged directory already rejects the older record."
+      "input": "Land a production change with a fast step verifier and unchanged inputs between the two host test stages. An encoder-only production edit at 692c145aa exercised the scorecard-history fixture. On a refused landing, journey-attach/do, the step verifier itself failed in 9.7 s.",
+      "expected": "Keep cheap prerequisite checks early. Run the step verifier before unrelated long integration fixtures. Keep their distinct behavioral coverage in the ordinary suite and run each check once per unchanged candidate and inputs. Preserve the tagged whole-tree checks, undo evidence and coverage of inputs the gate edits.",
+      "actual": "invariants runs four full ordinary package suites before the step verifier. At 692c145aa the scorecard-history fixture took 66 s inside a 9 min 28 s stage before a 9 s verifier. On the refused journey-attach/do attempt, invariants took 215 s before the 9.7 s failure. After a passing verifier, test requests ./... again. At 6862d5287 the dispatch refusal test ran for 47 s then 41 s, and the trunk protection test for 29 s then 35 s. End-to-end savings are unmeasured."
     },
     {
       "id": "SQA-415",
@@ -52,17 +36,30 @@
       "actual": "TrackedDocuments lists files still present. documentReaders therefore has no entry for either deleted fixture. In discover, an absent entry yields zero readers, so -reached can omit the test that would fail on the missing input. Existing checks cover edits while the fixtures exist. This follows from source."
     },
     {
-      "id": "SQA-515",
+      "id": "SQA-502",
       "severity": "P2",
       "files": [
-        "internal/latentimage/model_encoder.go",
-        "internal/latentimage/model_encoder_windows.go",
-        "internal/model/cache_schema.go",
-        "internal/cuda/executor/executor.go"
+        "cmd/loop/improve.go",
+        "cmd/loop/improve_resume_test.go",
+        "internal/landing/lanes.go"
       ],
-      "input": "Run the first guided MOSS Ultra text-to-image request with both prompts uncached. Its Qwen3.5-9B encoder has 24 recurrent layers. Each starts the two prompts with separate zero convolution and recurrent states.",
-      "expected": "Use the executor's existing reference.ZeroValue for both initial states. Preserve the bit-exact hidden states and the one-block device-memory bound already checked by TestATextEncoderHoldsOneBlockOnTheCard. The zero inputs should require no host payload or host-to-device transfer.",
-      "actual": "Source at ab55e884d: compileModelEncoderFrom allocates both states as float32 slices. encodeEach passes them to Retain, and the executor copies materialized inputs into host staging and uploads them. Per layer and prompt the states contain 3 x 8192 and 128 x 128 x 32 floats. Across 24 layers and two prompts that is 100.5 MiB of zeros uploaded per cold guided encode. The same executor initializes shape-only zero inputs on the device. The byte count follows from the model and code. The timing record does not isolate these transfers."
+      "input": "In a full measurement let preflight, lanes and cells pass, then let publication alone fail before a scorecard is written. Retry the same run with matching commit, store, obligations and prerequisite inputs.",
+      "expected": "Retry publication with its completed cells and verified prerequisites. Recheck prerequisites when their inputs change or their successful completion cannot be established.",
+      "actual": "The launcher now admits a requested full scorecard through the cycle. On a publication-only retry measurePhases reads Cells and Published but invokes preflight and lanes before consulting either. The retained November 25 run spent 9 h 14 min 23 s in lanes. Repetition follows from source and the resume fixture. A retry duration has not been measured."
+    },
+    {
+      "id": "SQA-474",
+      "severity": "P2",
+      "files": [
+        "cmd/loop/improve.go",
+        "internal/loop/driver.go",
+        "cmd/validate/scorecard.go",
+        "cmd/loop/improve_test.go",
+        "cmd/loop/improve_resume_test.go"
+      ],
+      "input": "While cycle C is checking its lanes, let another publisher write a scorecard for the same commit into the same store on a later clock second. Let C fail a required lane before it publishes.",
+      "expected": "C returns the lane error and keeps its retry state. Only a publication produced or explicitly credited by C supplies its proposals and permits Fill to clear that state. The existing publisher reports the path it wrote.",
+      "actual": "Measure treats an increase in the directory's record count as proof of publication and returns the newest record if its commit matches. Improve proposes from that record and calls Fill even with the lane error. Fill removes C's phase and cell credit. This follows from source. The retained case with an unchanged directory already rejects the older record."
     },
     {
       "id": "SQA-507",
@@ -200,13 +197,6 @@
     "at": "2026-11-27",
     "head": "be6e5733889718881b5f81588f9b5c55146aee9c",
     "findings": {
-      "SQA-515": {
-        "action": "filed",
-        "rows": [
-          "moss-encoder-zeros/do"
-        ],
-        "note": "Answered by the lead on 2026-11-27 at be6e57338: valid from source (compileModelEncoderFrom feeds each recurrent layer's starting states as float32 zeros, which Retain stages and uploads, 100.5 MiB a cold guided encode, where reference.ZeroValue is initialised on the card); the transfers' share of the cold encode is not isolated. Within the campaign's first-request gap: filed as moss-encoder-zeros/do after close-launcher, whose change waits tested in the tree."
-      },
       "SQA-514": {
         "action": "filed",
         "rows": [
@@ -300,7 +290,7 @@
       }
     }
   },
-  "next_finding_number": 516,
+  "next_finding_number": 517,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -228,12 +228,12 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	acquired := 0
 	// acquiredOf counts each model's cells, which say when a trained model has had its one measurement.
 	acquiredOf := map[artifact.ID]int{}
-	// broken are the failures that are no yield, which a run that yielded keeps beside its yield (SQA-437).
-	var broken []string
 	record := func(subject string, err error) {
 		switch {
 		case err == nil:
 			acquired++
+		case errors.Is(err, errYielded):
+			// A yielded lane neither passed nor failed: each test it ran kept its result, and the rest stay due.
 		case errors.Is(err, errInapplicable):
 			inapplicable = append(inapplicable, fmt.Sprintf("%s: %v", subject, err))
 		case errors.Is(err, errMeasuredBesideWork):
@@ -242,10 +242,11 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			unsized = append(unsized, fmt.Sprintf("%s: %v", subject, err))
 		default:
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
-			if !errors.Is(err, errYielded) {
-				broken = append(broken, fmt.Sprintf("%s: %v", subject, err))
-			}
 		}
+	}
+	keep, err := resultKeeper(ctx, output, root, plan.LanesKept, len(suites) > 0)
+	if err != nil {
+		return err
 	}
 	// yielded is the newer commit due the run yielded to as a lane turned to another package (Plan.Yields,
 	// lanes-first/yield): no step after runs, and a lane after runs none.
@@ -262,10 +263,12 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		// (lanes-card-order): a commit beside the lanes was refused for memory, its lanes waited the models lane's hours,
 		// and a commit waited 81 min for a package that held the card (lanes-yield). The lane is judged by its packages,
 		// each once over its steps (laneVerdict).
-		var reports []testevidence.GoTestReport
 		steps := []laneStep{{arguments: suite.Arguments}}
 		if len(suite.Each) > 0 {
-			steps = testSteps(ctx, root, suite.Each, suite.Environment, suite.First)
+			var left int
+			if steps, left = testSteps(ctx, root, suite.Each, suite.Environment, suite.Current); left > 0 {
+				fmt.Fprintf(output, "validate -run: cycle lane %s leaves out %d tests whose passes nothing changed since reaches\n", suite.Lane, left)
+			}
 		}
 		runs, verdicts := make([]func() error, len(steps)), make([]error, len(steps))
 		environment := stepEnvironment(plan, suite.Environment)
@@ -289,8 +292,15 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 				}
 				last = step.pkg
 				report, err := acquire(ctx, output, root, "go", step.arguments, environment...)
-				reports = append(reports, report)
 				verdicts[index] = err
+				// Each test is kept as it ends: what go test reported of it, and a step's own test that failed with no
+				// report of its own, as a process its tree's bound ends writes none (lanes-record).
+				passed, broke := resultsIn(report)
+				if step.test != "" && err != nil && !errors.Is(err, errInapplicable) {
+					broke = append(broke, testKey(step.arguments[len(step.arguments)-1], step.test))
+				}
+				keep(false, passed...)
+				keep(true, broke...)
 				return nil
 			}
 		}
@@ -312,7 +322,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		}
 		err := each("the cycle lane "+suite.Lane, outer, runs)
 		// A failure to take a turn stands with the packages' failures, never beside an inapplicable verdict that would hide it.
-		passed, verdict := laneVerdict(steps, verdicts)
+		verdict := laneVerdict(steps, verdicts)
 		switch {
 		case err == nil:
 			err = verdict
@@ -320,23 +330,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			err = errors.Join(err, verdict)
 		}
 		record("cycle lane "+suite.Lane, err)
-		if plan.LanesKept == "" {
-			continue
-		}
-		// A lane run package by package keeps each package that passed, read by its package path (lanes-package-pass).
-		var packages []string
-		for _, pkg := range passed {
-			if pkg < len(suite.Each) {
-				packages = append(packages, suite.Each[pkg][len(suite.Each[pkg])-1])
-			}
-		}
-		if kept := keepLaneRun(ctx, plan.LanesKept, root, suite.Lane, err == nil, packages, reports...); kept != nil {
-			fmt.Fprintf(output, "validate -run: the cycle lane %s's end is not kept: %v\n", suite.Lane, kept)
-		}
-	}
-	if yielded != "" && plan.Yielded != nil {
-		if err := plan.Yielded(yielded, broken); err != nil {
-			fmt.Fprintf(output, "validate -run: the run's yield to %.12s is not kept: %v\n", yielded, err)
+		// A lane run whole is kept as one result, which a close reads its reach from (stillCurrent).
+		if len(suite.Each) == 0 && !errors.Is(err, errYielded) && !errors.Is(err, errInapplicable) {
+			keep(err != nil, testKey("", suite.Lane))
 		}
 	}
 	if len(failed)+len(inapplicable) > 0 && len(cells) > 0 {
@@ -819,27 +815,36 @@ func trunkCheckout(ctx context.Context, root string) string {
 	return filepath.Dir(filepath.FromSlash(strings.TrimSpace(string(common))))
 }
 
-// keepLaneRun records a cycle lane's end in the state of the checkout kept (plan.RecordLaneRun): the commit the lane
-// ran at, read from the checkout root it ran in, which may be a worktree of the trunk's, and its verdict, so the status
-// says where each lane last passed (lane-passes/do), and the lane's packages that passed in it, which a close reads each
-// one's reach from (lanes-package-pass).
-func keepLaneRun(ctx context.Context, kept, root, lane string, passed bool, packages []string, reports ...testevidence.GoTestReport) error {
+// resultKeeper keeps a run's lane tests' results as each ends (plan.RecordTestResults), at the commit root holds, which
+// may be a worktree of the trunk's, in the state of the checkout kept, so a run cut short or yielded keeps what it ran
+// (lanes-record); it keeps nothing where none is kept or no lane runs.
+func resultKeeper(ctx context.Context, output io.Writer, root, kept string, lanes bool) (func(failed bool, tests ...string), error) {
+	if kept == "" || !lanes {
+		return func(bool, ...string) {}, nil
+	}
 	head, err := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	commit, ended := strings.TrimSpace(string(head)), time.Now()
-	// Each test the lane passed is kept as passing at that commit too, which a claim reads (single-source/claim-record).
-	var tests []string
-	for _, report := range reports {
-		for _, test := range report.TestCosts() {
-			if test.Action == "pass" && !strings.Contains(test.Name, "/") {
-				tests = append(tests, plan.PassedTest(test.Package, test.Name))
-			}
+	commit := strings.TrimSpace(string(head))
+	return func(failed bool, tests ...string) {
+		if err := plan.RecordTestResults(kept, plan.TestResult{Commit: commit, Failed: failed, Ended: time.Now()}, tests...); err != nil {
+			fmt.Fprintf(output, "validate -run: the results of %s are not kept: %v\n", strings.Join(tests, ", "), err)
+		}
+	}, nil
+}
+
+// resultsIn are the top-level tests a run of go test passed and failed, as their results are kept (plan.PassedTest); a
+// pass is what a claim reads too (single-source/claim-record).
+func resultsIn(report testevidence.GoTestReport) (passed, failed []string) {
+	for _, test := range report.TestCosts() {
+		switch named := plan.PassedTest(test.Package, test.Name); {
+		case strings.Contains(test.Name, "/"):
+		case test.Action == "pass":
+			passed = append(passed, named)
+		case test.Action == "fail":
+			failed = append(failed, named)
 		}
 	}
-	run := plan.LaneRun{Commit: commit, Passed: passed, Ended: ended}
-	return errors.Join(plan.RecordLaneRun(kept, lane, run),
-		plan.RecordLanePackages(kept, lane, plan.LaneRun{Commit: commit, Passed: true, Ended: ended}, packages),
-		plan.RecordTestPasses(kept, plan.TestPass{Commit: commit, Ended: ended}, tests))
+	return passed, failed
 }

@@ -127,7 +127,7 @@ func publishedClaims(output io.Writer, root string, write bool) error {
 }
 
 // claimStandings says of each claim where its test last passed, as the trunk
-// checkout's record keeps it (plan.ReadTestPasses), and which file the claim
+// checkout's record keeps it (plan.ReadTestResults), and which file the claim
 // names moved since; a claim whose test has no pass kept says that. A claim
 // refuses nothing: its standing is read when a session asks for it.
 func claimStandings(ctx context.Context, output io.Writer, root string) error {
@@ -135,7 +135,7 @@ func claimStandings(ctx context.Context, output io.Writer, root string) error {
 	if err != nil {
 		return err
 	}
-	passes := plan.ReadTestPasses(cmp.Or(trunkCheckout(ctx, root), root))
+	passes := plan.ReadTestResults(cmp.Or(trunkCheckout(ctx, root), root))
 	for _, item := range slices.SortedFunc(slices.Values(document.Claims), func(left, right claim) int { return strings.Compare(left.ID, right.ID) }) {
 		directory, test, ok := item.test()
 		if !ok {
@@ -164,15 +164,15 @@ func claimStandings(ctx context.Context, output io.Writer, root string) error {
 }
 
 // lastPass is the pass kept for test in the package at directory, which the
-// record names by its import path (plan.PassedTest).
-func lastPass(passes map[string]plan.TestPass, directory, test string) (plan.TestPass, bool) {
-	for name, pass := range passes {
-		pkg, passed, found := strings.Cut(name, " ")
-		if found && passed == test && samePackage("./"+directory, pkg) {
-			return pass, true
+// record names by its import path (plan.PassedTest); a kept failure is no pass.
+func lastPass(results map[string]plan.TestResult, directory, test string) (plan.TestResult, bool) {
+	for name, result := range results {
+		pkg, named, found := strings.Cut(name, " ")
+		if found && named == test && !result.Failed && samePackage("./"+directory, pkg) {
+			return result, true
 		}
 	}
-	return plan.TestPass{}, false
+	return plan.TestResult{}, false
 }
 
 func generate(root string) ([]byte, error) {

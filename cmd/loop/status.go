@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -39,28 +38,39 @@ type workStatus struct {
 	Lanes []laneStanding `json:"lanes,omitzero"`
 }
 
-// laneStanding is a cycle lane as the status says it: the commit it last passed at, the trunk's commits since, and its
-// last run, kept by validate -run wherever it ran (plan.RecordLaneRun).
+// laneStanding is a cycle lane as the status says it, from the results its tests keep wherever they ran
+// (plan.RecordTestResults, lanes-record): how many passed and failed, and the newest.
 type laneStanding struct {
-	Lane   string       `json:"lane"`
-	Passed string       `json:"passed,omitzero"`
-	Since  int          `json:"since"`
-	Last   plan.LaneRun `json:"last"`
+	Lane   string          `json:"lane"`
+	Passed int             `json:"passed"`
+	Failed int             `json:"failed"`
+	Newest plan.TestResult `json:"newest,omitzero"`
 }
 
-// laneStandings reads where each of the cycle's declared lanes stands in the record kept at root, in the cycle's order:
-// a lane that never ran says so, and a name the record holds that no lane is goes unread, as the seven fixture lanes a
-// test of the runner had written into the trunk's record were printed (lane-record/do).
-func laneStandings(ctx context.Context, root string) []laneStanding {
-	runs := plan.ReadLaneRuns(root)
+// laneStandings reads where each of the cycle's declared lanes stands in the results kept at root, in the cycle's order:
+// a lane run whole by its own result, a lane run test by test by its packages' tests'; a result no declared lane holds
+// goes unread, as the seven fixture lanes a test of the runner had written into the trunk's record were printed
+// (lane-record/do).
+func laneStandings(root string) []laneStanding {
+	results := plan.ReadTestResults(root)
 	var standings []laneStanding
-	for _, declared := range landing.CycleLanes() {
-		lane := declared.Name
-		standing := laneStanding{Lane: lane, Last: runs[lane].Last}
-		if passed := runs[lane].Passed.Commit; passed != "" {
-			if count, err := gitauthority.Query(ctx, root, "rev-list", "--count", passed+"..HEAD"); err == nil {
-				standing.Passed = passed
-				standing.Since, _ = strconv.Atoi(strings.TrimSpace(string(count)))
+	for _, lane := range landing.CycleLanes() {
+		standing := laneStanding{Lane: lane.Name}
+		packages := map[string]bool{}
+		for _, arguments := range lane.Each {
+			packages["overgo/"+strings.TrimPrefix(arguments[len(arguments)-1], "./")] = true
+		}
+		for key, result := range results {
+			if pkg, _, _ := strings.Cut(key, " "); key != plan.LaneTest(lane.Name) && !packages[pkg] {
+				continue
+			}
+			if result.Failed {
+				standing.Failed++
+			} else {
+				standing.Passed++
+			}
+			if result.Ended.After(standing.Newest.Ended) {
+				standing.Newest = result
 			}
 		}
 		standings = append(standings, standing)
@@ -68,21 +78,14 @@ func laneStandings(ctx context.Context, root string) []laneStanding {
 	return standings
 }
 
-// String is a lane's standing in a line: where it last passed and the commits since, and how its last run ended, or
+// String is a lane's standing in a line: how many of its results passed and failed and when the newest was taken, or
 // that it never ran.
 func (standing laneStanding) String() string {
-	if standing.Last.Commit == "" {
+	if standing.Newest.Commit == "" {
 		return "lane " + standing.Lane + ": never run"
 	}
-	said := "lane " + standing.Lane + ": never passed"
-	if standing.Passed != "" {
-		said = fmt.Sprintf("lane %s: passed at %.12s, %d commits since", standing.Lane, standing.Passed, standing.Since)
-	}
-	verdict := "failed"
-	if standing.Last.Passed {
-		verdict = "passed"
-	}
-	return fmt.Sprintf("%s; last run %s at %.12s, %s", said, verdict, standing.Last.Commit, standing.Last.Ended.Local().Format("Jan 2 15:04"))
+	return fmt.Sprintf("lane %s: %d passed, %d failed; the newest at %.12s, %s", standing.Lane, standing.Passed, standing.Failed,
+		standing.Newest.Commit, standing.Newest.Ended.Local().Format("Jan 2 15:04"))
 }
 
 // statusOf is the status of a checkout whose dispatch line, last commit, plan and pace are given.
@@ -125,7 +128,7 @@ func writeStatus(root string, said io.Writer) error {
 	if status.Worklist, err = landing.Worklist(root); err != nil {
 		return err
 	}
-	status.Lanes = laneStandings(ctx, root)
+	status.Lanes = laneStandings(root)
 	path, err := statePath(root, statusFile)
 	if err != nil {
 		return err

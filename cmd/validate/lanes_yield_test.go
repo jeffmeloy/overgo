@@ -13,9 +13,9 @@ import (
 
 // TestALanesRunYieldsAtAPackageToANewerClose holds a run of the lanes a runner starts to yielding, as a lane turns to
 // another package, to a newer commit named due (lanes-first/yield): a lane of two fixture packages whose newer commit
-// is named due once the first has run runs the first and not the second, keeps the first's pass and not the lane's,
-// and ends yielded, not failed; and a runner's yield reads the due file against the run's own commit, and writes its
-// record beside the file. moss-attention/do landed at 00:46 on 2026-11-19 while a run at an older commit ran on for 11
+// is named due once the first has run runs the first and not the second, keeps the first's test's pass as it ended
+// and nothing of the second (lanes-record), and ends without a failure; and a runner's yield reads the due file against
+// the run's own commit. moss-attention/do landed at 00:46 on 2026-11-19 while a run at an older commit ran on for 11
 // hours.
 func TestALanesRunYieldsAtAPackageToANewerClose(t *testing.T) {
 	t.Parallel()
@@ -37,12 +37,12 @@ func TestALanesRunYieldsAtAPackageToANewerClose(t *testing.T) {
 	}
 	var out bytes.Buffer
 	err := executeRun(t.Context(), &out, root, "C:/stores/selected", nil, lanes, scopeLanes)
-	record := plan.ReadLaneRuns(lanes.LanesKept)["models"]
-	if err == nil || !strings.Contains(err.Error(), errYielded.Error()) || strings.Contains(out.String(), "./second\n") {
-		t.Errorf("a run told after its first package that a newer commit is due ended %v; want it yielded, its second package not run\n%s", err, out.String())
+	results := plan.ReadTestResults(lanes.LanesKept)
+	if err != nil || !strings.Contains(out.String(), "yields to newer") || strings.Contains(out.String(), "./second\n") {
+		t.Errorf("a run told after its first package that a newer commit is due ended %v; want it yielded with no failure, its second package not run\n%s", err, out.String())
 	}
-	if record.Last.Passed || record.Packages["./first"].Commit != head || record.Packages["./second"].Commit != "" {
-		t.Errorf("a run that yielded after its first package kept %+v; want the first package's pass alone, the lane not passed", record)
+	if first := results["fixture/first TestRuns"]; first.Commit != head || first.Failed || len(results) != 1 {
+		t.Errorf("a run that yielded after its first package kept %+v; want the first package's test's pass alone, at %s", results, head)
 	}
 
 	due := filepath.Join(t.TempDir(), "lanes_due.json")
@@ -52,11 +52,7 @@ func TestALanesRunYieldsAtAPackageToANewerClose(t *testing.T) {
 		t.Errorf("a run yielded to %q, its own commit named due; want it to run on", to)
 	}
 	testcheck.NoError(t, os.WriteFile(due, []byte(`{"commit":"a-newer-close","rows":["fixture"]}`), 0o644))
-	to, yields := yield.yields()
-	testcheck.NoError(t, yield.yielded(to, nil))
-	data, readErr := os.ReadFile(filepath.Join(filepath.Dir(due), plan.LanesYieldedFile))
-	if !yields || to != "a-newer-close" || readErr != nil || !strings.Contains(string(data), head) {
-		t.Errorf("a run with a newer commit named due yielded %t to %q, its record %q (%v); want it yielded to that commit, its record naming its own %s",
-			yields, to, data, readErr, head)
+	if to, yields := yield.yields(); !yields || to != "a-newer-close" {
+		t.Errorf("a run with a newer commit named due yielded %t to %q; want it yielded to that commit", yields, to)
 	}
 }

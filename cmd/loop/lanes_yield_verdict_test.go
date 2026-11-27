@@ -8,18 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
-	"overgo/internal/jsonfile"
-	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
 )
 
-// TestAYieldedRunSaysItsFailures holds the runner to saying how a run that yielded ended (SQA-437): a run whose yield
-// record names lanes it failed before it yielded did not pass, its failures said beside the yield, and a run that only
-// yielded is said to have yielded. The runner had said yielded alone whenever the record named its commit, the failed
-// checkpoint left in the detailed log.
+// TestAYieldedRunSaysItsFailures holds the runner to saying how a run ended (SQA-437, lanes-record): a run that failed a
+// test, before a yield or not, did not pass, its failure said; a run that only yielded, or passed, ended without a
+// failure, each test it ran kept as it ended. The runner had said yielded alone whenever a yield record named its
+// commit, the failed checkpoint left in the detailed log.
 func TestAYieldedRunSaysItsFailures(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -31,19 +28,17 @@ func TestAYieldedRunSaysItsFailures(t *testing.T) {
 	commit := gitFixture(t, root, "rev-parse", "HEAD")
 	testcheck.NoError(t, processlock.EnsureStateDirectory(root))
 	checkout := filepath.Join(root, processlock.StateDirectory, lanesCheckout)
-	record := filepath.Join(root, processlock.StateDirectory, plan.LanesYieldedFile)
-	ended := func(failures ...string) string {
+	ended := func(err error) string {
 		var output bytes.Buffer
 		testcheck.NoError(t, runLanesAt(root, checkout, lanesDue{Commit: commit, Rows: []string{"fixture"}}, "a fixture build", &output, func(string) error {
-			testcheck.NoError(t, jsonfile.Write(record, plan.LanesYielded{Commit: commit, To: "a-newer-close", Failures: failures}, clioptions.PrivateFileMode))
-			return errors.New("exit status 1")
+			return err
 		}, nil))
 		return output.String()
 	}
-	if said := ended("cycle lane models: TestMOSSSamplingCheckpoint failed"); !strings.Contains(said, "did not pass: cycle lane models: TestMOSSSamplingCheckpoint failed") || !strings.Contains(said, "then yielded to a-newer-clos") {
-		t.Errorf("a run that failed a checkpoint and then yielded was said as:\n%s\nwant its failure, then its yield", said)
+	if said := ended(errors.New("cycle lane models: TestMOSSSamplingCheckpoint failed")); !strings.Contains(said, "did not pass: cycle lane models: TestMOSSSamplingCheckpoint failed") {
+		t.Errorf("a run that failed a checkpoint was said as:\n%s\nwant its failure", said)
 	}
-	if said := ended(); strings.Contains(said, "did not pass") || !strings.Contains(said, "yielded to a-newer-clos") {
-		t.Errorf("a run that only yielded was said as:\n%s\nwant it yielded", said)
+	if said := ended(nil); strings.Contains(said, "did not pass") || !strings.Contains(said, "ended without a failure") {
+		t.Errorf("a run that only yielded was said as:\n%s\nwant it ended without a failure", said)
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 
 	"overgo/internal/gitauthority"
@@ -29,68 +28,82 @@ func gitSince(ctx context.Context, root string) func(earlier, later string) bool
 	}
 }
 
-// answerPassedSince answers -passed-since: the commit named, resolved in the repository at root, against the passes the
+// answerPassedSince answers -passed-since: the commit named, resolved in the repository at root, against the results the
 // trunk keeps (testsPassedSince).
 func answerPassedSince(ctx context.Context, output io.Writer, root, named string, tests []string) error {
 	commit, err := gitauthority.Query(ctx, root, "rev-parse", "--verify", named+"^{commit}")
 	if err != nil {
 		return fmt.Errorf("-passed-since %s names no commit: %w", named, err)
 	}
-	passes := plan.ReadTestPasses(cmp.Or(trunkCheckout(ctx, root), root))
-	return testsPassedSince(output, passes, strings.TrimSpace(string(commit)), tests, gitSince(ctx, root))
+	results := plan.ReadTestResults(cmp.Or(trunkCheckout(ctx, root), root))
+	return testsPassedSince(output, results, strings.TrimSpace(string(commit)), tests, gitSince(ctx, root))
 }
 
-// answerLanesPassedAt answers -lanes-passed-at: the commit named, resolved in the repository at root, against the lanes'
-// records the trunk keeps (lanesPassedAt).
+// answerLanesPassedAt answers -lanes-passed-at: the commit named, resolved in the repository at root, against the results
+// the trunk keeps (lanesPassedAt), each one's changes read from its commit to the one named.
 func answerLanesPassedAt(ctx context.Context, output io.Writer, root, named string) error {
 	commit, err := gitauthority.Query(ctx, root, "rev-parse", "--verify", named+"^{commit}")
 	if err != nil {
 		return fmt.Errorf("-lanes-passed-at %s names no commit: %w", named, err)
 	}
-	runs := plan.ReadLaneRuns(cmp.Or(trunkCheckout(ctx, root), root))
-	return lanesPassedAt(output, runs, landing.CycleLanes(), strings.TrimSpace(string(commit)))
+	at, since := strings.TrimSpace(string(commit)), gitSince(ctx, root)
+	results := plan.ReadTestResults(cmp.Or(trunkCheckout(ctx, root), root))
+	current := stillCurrent(root, results, func(base string) ([]string, error) {
+		if !since(base, at) {
+			return nil, fmt.Errorf("%.12s is not %.12s or before it", base, at)
+		}
+		listed, err := gitauthority.Query(ctx, root, "diff", "--name-only", base, at)
+		return strings.Fields(string(listed)), err
+	})
+	return lanesPassedAt(output, results, landing.CycleLanes(), at, current)
 }
 
-// lanesPassedAt answers, from the lanes' records (plan.RecordLaneRun, plan.RecordLanePackages), whether one whole slow
-// run passed at commit (slow-whole): every cycle lane's last pass, and each package's of a lane run package by package,
-// is of that commit. A run cut to what changed passes a lane at its commit while the packages it cut keep passes of
-// earlier ones, and a lane it reached nowhere keeps its own, so each is read. It says each lane's answer on output, and
-// is an error naming every lane and package whose last pass is of another commit or none.
-func lanesPassedAt(output io.Writer, runs map[string]plan.LaneRecord, lanes []landing.CycleLane, commit string) error {
+// lanesPassedAt answers, from the results the lanes keep (plan.RecordTestResults), whether the slow tests passed at commit
+// (slow-whole): each lane run whole has a pass current at it, and each test of a lane run test by test whose result is
+// kept is a pass current at it (current, stillCurrent read up to commit). It says each lane's answer on output, and is
+// an error naming every lane that does not.
+func lanesPassedAt(output io.Writer, results map[string]plan.TestResult, lanes []landing.CycleLane, commit string, current func(lane, pkg, key string) bool) error {
 	var other []string
-	read := func(name string, pass plan.LaneRun) {
-		switch {
-		case pass.Commit == "":
-			other = append(other, name)
-			fmt.Fprintf(output, "%s: no pass kept\n", name)
-		case pass.Commit != commit:
-			other = append(other, name)
-			fmt.Fprintf(output, "%s: last passed at %.12s on %s\n", name, pass.Commit, pass.Ended.Format("2006-01-02 15:04"))
-		}
-	}
 	for _, lane := range lanes {
-		record := runs[lane.Name]
-		read(lane.Name, record.Passed)
-		for _, arguments := range lane.Each {
-			pkg := arguments[len(arguments)-1]
-			read(lane.Name+" "+pkg, record.Packages[pkg])
+		if len(lane.Each) == 0 {
+			if current(lane.Name, "", testKey("", lane.Name)) {
+				fmt.Fprintf(output, "%s: passed, current at %.12s\n", lane.Name, commit)
+			} else {
+				fmt.Fprintf(output, "%s: no pass current at %.12s\n", lane.Name, commit)
+				other = append(other, lane.Name)
+			}
+			continue
 		}
-		if !slices.ContainsFunc(other, func(name string) bool { return name == lane.Name || strings.HasPrefix(name, lane.Name+" ") }) {
-			fmt.Fprintf(output, "%s: passed whole at %.12s, %d packages\n", lane.Name, commit, len(lane.Each))
+		passed, not := 0, 0
+		for key := range results {
+			name, test, _ := strings.Cut(key, " ")
+			for _, arguments := range lane.Each {
+				if pkg := arguments[len(arguments)-1]; modulePrefix+strings.TrimPrefix(pkg, "./") == name {
+					if current(lane.Name, pkg, testKey(pkg, test)) {
+						passed++
+					} else {
+						not++
+					}
+				}
+			}
+		}
+		fmt.Fprintf(output, "%s: %d tests kept passed and current at %.12s, %d not\n", lane.Name, passed, commit, not)
+		if not > 0 || passed == 0 {
+			other = append(other, lane.Name)
 		}
 	}
 	if len(other) > 0 {
-		return fmt.Errorf("-lanes-passed-at %.12s: %d lanes and packages last passed at another commit or none: %s", commit, len(other), strings.Join(other, ", "))
+		return fmt.Errorf("-lanes-passed-at %.12s: %d lanes hold results that are not passes current there: %s", commit, len(other), strings.Join(other, ", "))
 	}
 	return nil
 }
 
-// testsPassedSince answers, from the passes the lanes and the landings keep (plan.RecordTestPasses), whether each test
-// named <package>.<Test> last passed at commit or at one descending from it (since): it says each test's last pass on
-// output, and is an error naming the tests with none since, so a step whose evidence is the slow tests' asks the tool
-// that keeps their records (passes-query). flash-bound-read/read's check had been an awk over the lanes' log, which the
-// gate's candidate checkout does not hold and whose lines it read wrongly three times (SQA-453).
-func testsPassedSince(output io.Writer, passes map[string]plan.TestPass, commit string, tests []string, since func(earlier, later string) bool) error {
+// testsPassedSince answers, from the results the lanes and the landings keep (plan.RecordTestResults), whether each test
+// named <package>.<Test> last passed at commit or at one descending from it (since): it says each test's last result
+// on output, and is an error naming the tests with no pass since, so a step whose evidence is the slow tests' asks the
+// tool that keeps their records (passes-query). flash-bound-read/read's check had been an awk over the lanes' log, which
+// the gate's candidate checkout does not hold and whose lines it read wrongly three times (SQA-453).
+func testsPassedSince(output io.Writer, results map[string]plan.TestResult, commit string, tests []string, since func(earlier, later string) bool) error {
 	if commit == "" || len(tests) == 0 {
 		return errors.New("usage: validate -passed-since <commit> <package>.<Test>...")
 	}
@@ -100,16 +113,19 @@ func testsPassedSince(output io.Writer, passes map[string]plan.TestPass, commit 
 		if at <= 0 || !strings.HasPrefix(named[at+1:], "Test") {
 			return fmt.Errorf("-passed-since: %q names no test as <package>.<Test>", named)
 		}
-		pass, held := passes[plan.PassedTest(named[:at], named[at+1:])]
+		result, held := results[plan.PassedTest(named[:at], named[at+1:])]
 		switch {
 		case !held:
-			fmt.Fprintf(output, "%s: no pass kept\n", named)
+			fmt.Fprintf(output, "%s: no result kept\n", named)
 			missing = append(missing, named)
-		case !since(commit, pass.Commit):
-			fmt.Fprintf(output, "%s: last passed at %.12s on %s, before %.12s\n", named, pass.Commit, pass.Ended.Format("2006-01-02 15:04"), commit)
+		case result.Failed:
+			fmt.Fprintf(output, "%s: failed at %.12s on %s\n", named, result.Commit, result.Ended.Format("2006-01-02 15:04"))
+			missing = append(missing, named)
+		case !since(commit, result.Commit):
+			fmt.Fprintf(output, "%s: last passed at %.12s on %s, before %.12s\n", named, result.Commit, result.Ended.Format("2006-01-02 15:04"), commit)
 			missing = append(missing, named)
 		default:
-			fmt.Fprintf(output, "%s: passed at %.12s on %s\n", named, pass.Commit, pass.Ended.Format("2006-01-02 15:04"))
+			fmt.Fprintf(output, "%s: passed at %.12s on %s\n", named, result.Commit, result.Ended.Format("2006-01-02 15:04"))
 		}
 	}
 	if len(missing) > 0 {

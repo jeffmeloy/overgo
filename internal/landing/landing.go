@@ -365,7 +365,7 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		l.spent.Outcome = outcomeLanded
 		// The tests that passed in the stages passed at the commit the change landed as, which a claim reads
 		// (single-source/claim-record).
-		if kept := plan.RecordTestPasses(cmp.Or(l.trunk, l.Repo), plan.TestPass{Commit: landed, Ended: time.Now()}, l.passed); kept != nil {
+		if kept := plan.RecordTestResults(cmp.Or(l.trunk, l.Repo), plan.TestResult{Commit: landed, Ended: time.Now()}, l.passed...); kept != nil {
 			fmt.Fprintf(options.Log, "land: the passes of %s's tests are not kept: %v\n", l.Ref, kept)
 		}
 	}

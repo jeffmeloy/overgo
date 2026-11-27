@@ -86,9 +86,9 @@ type Plan struct {
 	NotChosen []Selected `json:"not_chosen"`
 
 	Suites []SelectedSuite `json:"suites"`
-	// LanesKept is the checkout whose state keeps each cycle lane's end (keepLaneRun): the trunk's for a run of the
-	// lanes, none for a plan that keeps nothing, as a test's fixture lanes keep nothing: run through the runner, they
-	// had written their seven lanes into the trunk's record and the status printed them (lane-record/do).
+	// LanesKept is the checkout whose state keeps each lane test's result (plan.RecordTestResults): the trunk's for a
+	// run of the lanes, none for a plan that keeps nothing, as a test's fixture lanes keep nothing: run through the
+	// runner, they had written their seven lanes into the trunk's record and the status printed them (lane-record/do).
 	LanesKept string `json:"-"`
 	// HoldsCard runs a lane on the card in the card's turn for the purpose it names (landing.HoldLaneTurn), so the
 	// lane's tests ride the run's place and a render beside it gives the card up once for the lane, where each test
@@ -105,12 +105,9 @@ type Plan struct {
 	// no turn of the machine and do not wait out the packages of the cycle's lanes a closing commit runs (lanes-on-close).
 	TakesTurns func(purpose string, outer func(work func() error) error, steps []func() error) error `json:"-"`
 	// Yields says, as a lane's run turns to another package, whether a newer commit than the run's is due and which
-	// (lanes-first/yield): the run then runs nothing further, its packages that passed kept. Only a run a runner starts
-	// is given one (plan.LanesDueEnvironment); a run without it runs to its end.
+	// (lanes-first/yield): the run then runs nothing further, each test it ran kept as it ended. Only a run a runner
+	// starts is given one (plan.LanesDueEnvironment); a run without it runs to its end.
 	Yields func() (string, bool) `json:"-"`
-	// Yielded keeps, once the lanes end, that the run yielded to the commit it names and the lanes it failed before
-	// (SQA-437), for the runner to say beside the yield.
-	Yielded func(to string, failures []string) error `json:"-"`
 }
 
 // measuredModelsFile lists the models a full run measures again, by the names -model takes: one per runtime path,
@@ -183,8 +180,9 @@ type SelectedSuite struct {
 	// Each are the arguments that run each of the lane's packages alone, which run one by one in the test turn so a
 	// commit's tests take the machine between them (landing.CycleLane.Each); none where the lane runs whole.
 	Each [][]string `json:"each,omitzero"`
-	// First is what a run of the lane takes first, read from the commits since its last pass (lanes-first).
-	First lanesFirst `json:"-"`
+	// Current says a test of a package of the lane has a result that is a pass still current, which a close's run leaves
+	// out (reachedSuites, lanes-record); nil where every test runs, as a measurement's lanes run them all.
+	Current func(pkg, test string) bool `json:"-"`
 }
 
 // cycleSuites lists the improvement cycle's lanes, which run every cycle, each

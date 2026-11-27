@@ -12,7 +12,7 @@ import (
 // TestAYieldTakesNoMoreTurns holds a run of the lanes that yields to taking no turn for the steps after its yield
 // (SQA-438): a lane on the card of two fixture packages, the second of two tests, whose newer commit is named due as
 // it turns to the second, takes the card's turn for the first package's test and for the step that finds the yield,
-// and none for the second package's other test; and the run keeps its yield with no failure (SQA-437).
+// and none for the second package's other test; and the run ends with no failure (SQA-437, lanes-record).
 func TestAYieldTakesNoMoreTurns(t *testing.T) {
 	t.Parallel()
 	root, _ := fixtureRepository(t)
@@ -23,8 +23,6 @@ func TestAYieldTakesNoMoreTurns(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, pkg, pkg+"_test.go"), []byte("package "+pkg+"\n\nimport \"testing\"\n\n"+body), 0o644))
 	}
 	turns, asked := 0, 0
-	var kept []string
-	var to string
 	lanes := Plan{
 		Suites: []SelectedSuite{{Lane: "models", Arguments: []string{"test", "-count=1", "./first", "./second"}, Environment: []string{"OVERGO_CUDA_TEST=1"},
 			Each: [][]string{{"test", "-count=1", "./first"}, {"test", "-count=1", "./second"}}}},
@@ -33,14 +31,10 @@ func TestAYieldTakesNoMoreTurns(t *testing.T) {
 			asked++
 			return "newer", asked > 1
 		},
-		Yielded: func(yielded string, failures []string) error { to, kept = yielded, failures; return nil },
 	}
 	var out bytes.Buffer
-	if err := executeRun(t.Context(), &out, root, "C:/stores/selected", nil, lanes, scopeLanes); err == nil {
-		t.Fatalf("a run that yielded ended as passed; want it yielded\n%s", out.String())
-	}
-	if turns != 2 || to != "newer" || len(kept) != 0 {
-		t.Errorf("a run that yielded at its second package took %d turns of the card and kept its yield to %q with failures %q; want two turns and the yield with none\n%s",
-			turns, to, kept, out.String())
+	err := executeRun(t.Context(), &out, root, "C:/stores/selected", nil, lanes, scopeLanes)
+	if turns != 2 || err != nil {
+		t.Errorf("a run that yielded at its second package took %d turns of the card and ended %v; want two turns and no failure\n%s", turns, err, out.String())
 	}
 }

@@ -240,9 +240,9 @@ func describeBuild(built string, info *debug.BuildInfo) string {
 
 // runLanesAt moves checkout to the commit due with the data roots (moveWithRoots) and runs the lanes there with run,
 // saying when they began, under the runner's build (lanesRunnerBuild), and how they ended; only a checkout that cannot
-// be moved fails it. A run that yielded to a newer commit due between packages, as its record beside the commit due
-// says, is said to have yielded, its passed packages kept, rather than to have failed (lanes-first/yield). begun, where
-// given, records the run begun once the checkout is set up, before the lanes run.
+// be moved fails it. A run ends without a failure where every test it took passed or it yielded to a newer commit due
+// between packages, each test it ran kept as it ended (lanes-record), as its own output says. begun, where given,
+// records the run begun once the checkout is set up, before the lanes run.
 func runLanesAt(root, checkout string, due lanesDue, runner string, output io.Writer, run func(checkout string) error, begun func() error) error {
 	if err := moveWithRoots(root, checkout, due.Commit); err != nil {
 		return err
@@ -252,24 +252,12 @@ func runLanesAt(root, checkout string, due lanesDue, runner string, output io.Wr
 			return err
 		}
 	}
-	yieldedRecord := filepath.Join(root, processlock.StateDirectory, plan.LanesYieldedFile)
-	if err := os.Remove(yieldedRecord); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
 	began := time.Now()
 	fmt.Fprintf(output, "loop: %s the cycle's lanes run at %.12s, which closed %s, under the runner built at %s\n",
 		began.Format(time.DateTime), due.Commit, strings.Join(due.Rows, ", "), runner)
-	verdict := "passed"
+	verdict := "ended without a failure"
 	if err := run(checkout); err != nil {
 		verdict = "did not pass: " + err.Error()
-		var yielded plan.LanesYielded
-		if jsonfile.Decode(yieldedRecord, &yielded) == nil && yielded.Commit == due.Commit {
-			verdict = fmt.Sprintf("yielded to %.12s, a newer commit due, as a lane turned to another package, its passed packages kept", yielded.To)
-			// A run that failed before it yielded did not pass: its failures are said beside the yield (SQA-437).
-			if len(yielded.Failures) > 0 {
-				verdict = "did not pass: " + strings.Join(yielded.Failures, "; ") + "; then " + verdict
-			}
-		}
 	}
 	fmt.Fprintf(output, "loop: %s the lanes at %.12s %s after %s\n", time.Now().Format(time.DateTime), due.Commit, verdict, time.Since(began).Round(time.Second))
 	return nil

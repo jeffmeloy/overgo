@@ -27,7 +27,7 @@ func TestTheMatrixReadsEachClaimTestsLastPass(t *testing.T) {
 		{ID: "other", EvidenceTier: tierContract, Summary: "Other works.", Evidence: []evidence{source, other}},
 	}, testModels())
 	passed := commitFixture(t, root, "claims")
-	testcheck.NoError(t, plan.RecordTestPasses(root, plan.TestPass{Commit: passed, Ended: time.Now()}, []string{plan.PassedTest("overgo/feature", "TestFeature")}))
+	testcheck.NoError(t, plan.RecordTestResults(root, plan.TestResult{Commit: passed, Ended: time.Now()}, plan.PassedTest("overgo/feature", "TestFeature")))
 	standing := func() string {
 		var out bytes.Buffer
 		testcheck.NoError(t, claimStandings(t.Context(), &out, root))

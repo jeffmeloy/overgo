@@ -18,42 +18,36 @@ func listedTest(line string) bool {
 		(strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Example") || strings.HasPrefix(name, "Fuzz"))
 }
 
-// laneStep is one go test run of a lane: its arguments, and the place among the lane's packages of the package it runs.
+// laneStep is one go test run of a lane: its arguments, the place among the lane's packages of the package it runs,
+// and the one test it runs, none where it runs its package whole.
 type laneStep struct {
 	arguments []string
 	pkg       int
+	test      string
 }
 
 // testSteps are the steps a lane run package by package takes (lanes-yield): each package's tests one at a time, the
 // package's arguments with -run naming one test, as go test -list lists them with the lane's flags, tags and
 // environment, so the card and the test turn pass to a waiting commit or probe between tests; in the run at
-// c79cfc121 one package held them 1 h 26 min. A package that cannot be listed, or lists no test, runs whole, its run
-// saying what failed. The steps run in the order first gives (lanes-first): the tests the landed rows' checks name,
-// then the changed packages' checkpoint tests, then the rest as listed.
-func testSteps(ctx context.Context, root string, packages [][]string, environment []string, first lanesFirst) []laneStep {
-	var steps []laneStep
-	var ranks []int
+// c79cfc121 one package held them 1 h 26 min. A test current says is current is left out (lanes-record), and current
+// is nil where every test runs. A package that cannot be listed, or lists no test, runs whole, its run saying what
+// failed. The steps run in the lane's own order, and left is how many tests were left out.
+func testSteps(ctx context.Context, root string, packages [][]string, environment []string, current func(pkg, test string) bool) (steps []laneStep, left int) {
 	for pkg, arguments := range packages {
 		names, err := listedTests(ctx, root, arguments, environment)
 		if err != nil || len(names) == 0 {
-			steps, ranks = append(steps, laneStep{arguments: arguments, pkg: pkg}), append(ranks, len(first.checks)+1)
+			steps = append(steps, laneStep{arguments: arguments, pkg: pkg})
 			continue
 		}
 		for _, name := range names {
-			steps = append(steps, laneStep{arguments: oneTest(arguments, name), pkg: pkg})
-			ranks = append(ranks, first.rank(arguments[len(arguments)-1], name))
+			if current != nil && current(arguments[len(arguments)-1], name) {
+				left++
+				continue
+			}
+			steps = append(steps, laneStep{arguments: oneTest(arguments, name), pkg: pkg, test: name})
 		}
 	}
-	order := make([]int, len(steps))
-	for index := range order {
-		order[index] = index
-	}
-	slices.SortStableFunc(order, func(a, b int) int { return ranks[a] - ranks[b] })
-	ordered := make([]laneStep, len(steps))
-	for place, index := range order {
-		ordered[place] = steps[index]
-	}
-	return ordered
+	return steps, left
 }
 
 // listedTests are the tests, examples and fuzz targets go test lists for a package step, its arguments the go command's
@@ -86,9 +80,7 @@ func oneTest(arguments []string, name string) []string {
 // when a package failed, its error then wrapping no errInapplicable, so a failure is never reported as inapplicable;
 // else it is inapplicable when a package was. Judged test by test, a package whose one test declared itself
 // inapplicable had been an inapplicable lane, and one with a failure beside such a test an inapplicable lane too.
-// The lane's packages that passed, by their place among its packages, are what a close's next run reads each one's
-// reach from (lanes-package-pass).
-func laneVerdict(steps []laneStep, verdicts []error) (passedPackages []int, err error) {
+func laneVerdict(steps []laneStep, verdicts []error) error {
 	var failed, declared, halted []error
 	packages := 0
 	for _, step := range steps {
@@ -117,17 +109,15 @@ func laneVerdict(steps []laneStep, verdicts []error) (passedPackages []int, err 
 			halted = append(halted, yielded[0])
 		case !passed:
 			declared = append(declared, excluded...)
-		default:
-			passedPackages = append(passedPackages, pkg)
 		}
 	}
 	if len(failed) > 0 {
-		return passedPackages, errors.Join(failed...)
+		return errors.Join(failed...)
 	}
 	if len(halted) > 0 {
-		return passedPackages, halted[0]
+		return halted[0]
 	}
-	return passedPackages, errors.Join(declared...)
+	return errors.Join(declared...)
 }
 
 // errYielded is the verdict of a step a run of the lanes did not run because it yielded to a newer commit due

@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "agent-tool-errors",
-      "title": "A tool call whose result says isError fails the call: its mutation is recorded failed and a failed inspection earns no credit, after a restart too",
-      "steps": [
-        {
-          "id": "do",
-          "title": "decodeMCPResponse reads a tools/call result's isError, and the coordinator records an admitted mutation failed and a failed inspection uncredited",
-          "verify": "go test ./internal/agenttool ./internal/agentloop -count=1 -run '^TestAToolResultMarkedAnErrorFailsTheCall$'",
-          "files": [
-            "internal/agenttool",
-            "internal/agentloop",
-            "cmd/loop"
-          ],
-          "rationale": "SQA-508 (P2), checked by the lead against internal/agenttool/transport.go at 7e417691c: valid from source, a check that passes without checking. decodeMCPResponse returns a result unchanged when the envelope carries no error, so a tools/call result with isError=true, the shape serveTools emits when a worker tool fails, reads as success: closeMutationReceipt writes StageCompleted for the failed mutation, a failed inspection sets session.Inspection, and RestoreSession rebuilds that credit after a restart. No such run was observed.\n\nThe change: at tools/call the result's isError is read; the failed tool's text is kept as the call's diagnostic; an admitted mutation is recorded failed and a failed inspection earns no credit, after a restart too; the writer's replies reach the client with the client's request id. Fixtures check the flag true, false and omitted.\n\nCheck: TestAToolResultMarkedAnErrorFailsTheCall in both packages, each holding a test of the name; it uses the transport and coordinator the base holds, so it builds there and fails on its assertion.",
-          "depends_on": [
-            "moss-close/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "cuda-resources",
       "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
       "steps": [

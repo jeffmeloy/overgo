@@ -392,7 +392,26 @@ func (adapter *mcpHTTPAdapter) invoke(ctx context.Context, manual Manual, argume
 	if err != nil {
 		return nil, err
 	}
-	return decodeMCPResponse(body, callID)
+	result, err := decodeMCPResponse(body, callID)
+	if err != nil {
+		return nil, err
+	}
+	// A tools/call result the server marks isError is the tool's failure, its text the diagnostic: read as a result, a
+	// failed mutation had been recorded completed and a failed inspection credited, after a restart too (SQA-508).
+	var outcome struct {
+		IsError bool `json:"isError"`
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if json.Unmarshal(result, &outcome) == nil && outcome.IsError {
+		var said []string
+		for _, part := range outcome.Content {
+			said = append(said, part.Text)
+		}
+		return nil, fmt.Errorf("agent tool: %q failed: %s", manual.Name, strings.Join(said, "; "))
+	}
+	return result, nil
 }
 
 func (adapter *mcpHTTPAdapter) post(

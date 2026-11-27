@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/plan"
 	"overgo/internal/testcheck"
 )
 
@@ -24,11 +25,47 @@ func TestPreflightRunsTheCheapStagesOnly(t *testing.T) {
 			long = append(long, check.name)
 		}
 	}
-	if want := []string{"format", "fix", "vet", "rules", "form", "invariants", "verify"}; !slices.Equal(cheap, want) {
+	if want := []string{"format", "fix", "vet", "rules", "form", "verify", "invariants"}; !slices.Equal(cheap, want) {
 		t.Errorf("the preflight runs %v, want %v", cheap, want)
 	}
 	if want := []string{"test", "lanes", "scorecard"}; !slices.Equal(long, want) {
 		t.Errorf("the stages it leaves to the landing are %v, want %v", long, want)
+	}
+}
+
+// TestALandingRunsEachSuiteOnce holds a landing to running each package's suite in one stage, the step's check before
+// any (SQA-516): its invariants stage runs the whole-tree tests alone and its test stage every package's suite, the
+// invariant packages' among them, where both stages had run those, internal/landing 252 s and then 292 s at ff47d11d6.
+// A preflight, which has no test stage, runs the invariant suites in its invariants stage.
+func TestALandingRunsEachSuiteOnce(t *testing.T) {
+	t.Parallel()
+	fixture := newSliceFixture(t, map[string]string{
+		"internal/plan/plan.go":                   "// Package plan is a fixture.\npackage plan\n",
+		"internal/plan/plan_test.go":              "package plan\n\nimport \"testing\"\n\nfunc TestHeld(t *testing.T) {}\n",
+		"internal/landing/landing.go":             "// Package landing is a fixture.\npackage landing\n",
+		"internal/landing/tree_wholetree_test.go": "//go:build wholetree\n\npackage landing\n\nimport \"testing\"\n\nfunc TestWhole(t *testing.T) {}\n",
+	})
+	held, whole := plan.PassedTest("fixture/internal/plan", "TestHeld"), plan.PassedTest("fixture/internal/landing", "TestWhole")
+	for _, preflight := range []bool{false, true} {
+		l := &landing{Options: Options{Repo: fixture.repo, Preflight: preflight}, details: map[string]string{}}
+		testcheck.NoError(t, l.invariants(t.Context()))
+		if !preflight {
+			testcheck.NoError(t, l.test(t.Context()))
+		}
+		ran := map[string]int{}
+		for _, passed := range l.passed {
+			ran[passed]++
+		}
+		if ran[held] != 1 || ran[whole] != 1 {
+			t.Errorf("a gate (preflight %t) ran the invariant suite %d times and the whole-tree test %d times; want each once", preflight, ran[held], ran[whole])
+		}
+	}
+	var stages []string
+	for _, check := range (&landing{}).checks() {
+		stages = append(stages, check.name)
+	}
+	if verify := slices.Index(stages, "verify"); verify > slices.Index(stages, "invariants") || verify > slices.Index(stages, "test") {
+		t.Errorf("a landing orders its stages %v; want the step's check before every suite", stages)
 	}
 }
 

@@ -50,7 +50,7 @@ func TestLandingRecordsItsWaitsByCause(t *testing.T) {
 		stages             []string
 	}{
 		{"row/do", outcomePreflight, true, []string{"format", "fix", "vet", "rules", "form", "invariants", "verify"}},
-		{"row/refused", "verify", true, []string{"format", "fix", "vet", "rules", "form", "invariants", "verify"}},
+		{"row/refused", "verify", true, []string{"format", "fix", "vet", "rules", "form", "verify"}},
 		{"row/moved", outcomeConflict, false, []string{"format", "fix", "vet", "rules", "form", "invariants", "test", "lanes", "verify", "scorecard"}},
 		{"row/do", outcomeLanded, false, []string{"format", "fix", "vet", "rules", "form", "invariants", "test", "lanes", "verify", "scorecard"}},
 	} {

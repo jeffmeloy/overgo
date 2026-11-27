@@ -1,23 +1,7 @@
 {
   "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "gate-once",
-      "title": "A commit's gate runs each package suite once, the step's check before the whole tree's tests",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The invariants stage runs no ordinary package suite that the test stage runs, and the step's check runs before either",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingRunsEachSuiteOnce$'",
-          "files": [
-            "internal/landing"
-          ],
-          "rationale": "SQA-516 (P2), checked by the lead against internal/landing at ef97df584: valid from the landing records. The invariants stage runs four whole ordinary package suites before the step's verifier, and the test stage runs ./... again after it: at 692c145aa the scorecard-history fixture took 66 s of a 9 min 28 s invariants stage before a 9 s verifier; on the refused journey-attach/do attempt invariants took 215 s before a 9.7 s failure; at 6862d5287 the dispatch refusal test ran twice, 47 s and 41 s, and the trunk protection test 29 s and 35 s. A slow test run twice for one commit is the repeated testing the owner's review of 2026-11-25 named. The change: the step's check runs first, as the cheapest refusal, and a suite the test stage runs is not run by the invariants stage; what an invariant holds that ./... does not run stays. First list what each of the four suites holds that the test stage does not.\n\nCheck: TestALandingRunsEachSuiteOnce, the stages' commands for a change: no package suite in two stages, the verifier first."
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "skill-source-form",

@@ -9,9 +9,9 @@ import (
 )
 
 // TestACheckOnTheCardHoldsTheCardsTurn lands a change that reaches no lane on the card but whose step's check runs on
-// it, while another process holds the card's turn (check-turn/do): the landing waits for the turn, its cheap stages
-// passed, before it runs the check, and before the host's tests (verify-first/do), so the check's processes ride on its
-// place. A landing took the turn only for a
+// it, while another process holds the card's turn (check-turn/do): the landing waits for the turn, the stages of the
+// files' form passed, before it runs the check, and before every suite (verify-first/do, SQA-516), so the check's
+// processes ride on its place. A landing took the turn only for a
 // change reaching a card lane, and tabfm-cases/do's check, its trainer stepping on the card, took the card per context,
 // each waiting out a render's clip.
 func TestACheckOnTheCardHoldsTheCardsTurn(t *testing.T) {
@@ -54,7 +54,7 @@ func TestACheckOnTheCardHoldsTheCardsTurn(t *testing.T) {
 	if err := <-landed; err != nil {
 		t.Fatalf("the landing refused once the turn was free: %v", err)
 	}
-	if !strings.Contains(before, "land: invariants ok") || strings.Contains(before, "land: verify ok") || strings.Contains(before, "land: test ok") {
+	if !strings.Contains(before, "land: form ok") || strings.Contains(before, "land: verify ok") || strings.Contains(before, "land: invariants ok") || strings.Contains(before, "land: test ok") {
 		t.Errorf("the landing waited for the card's turn before its cheap stages passed, or ran its check on the card without it or after the tests:\n%s", before)
 	}
 }

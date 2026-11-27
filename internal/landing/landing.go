@@ -383,24 +383,23 @@ type check struct {
 // stage that refused, and Classify reads the name back. The cheap ones are
 // the stages that take seconds and refuse what the change itself got wrong:
 // the files' form, the style and growth rules, the form of each step's check
-// whatever it runs on (cheap-first/form), and the invariant tests the
-// repository holds itself to, which also run first in a full landing so the
-// refusal comes before the tests of every package. The step's own check, its
-// undo evidence included, runs with them when it runs on the host, seconds
-// where it ran after eight minutes of tests and lanes (fail-early/verify-first);
-// a check on the card, minutes to hours, keeps its place after them.
+// whatever it runs on (cheap-first/form), the step's own check, its undo evidence
+// included, and the invariant tests the repository holds itself to
+// (invariants). The step's check runs before every suite, the cheapest refusal:
+// after the invariant suites it had waited minutes behind them, 215 s before a
+// 9.7 s failure on a refused journey-attach/do (SQA-516).
 func (l *landing) checks() []check {
 	early := []check{
 		{"format", l.format, true}, {"fix", l.fix, true}, {"vet", l.vet, true}, {"rules", l.rules, true},
-		{"form", l.form, true}, {"invariants", l.invariants, true},
+		{"form", l.form, true},
 	}
 	long := []check{{"test", l.testInTurn, false}, {"lanes", l.lanes, false}}
-	verify, scorecard := check{"verify", l.verify, true}, check{"scorecard", l.scorecard, false}
+	verify, invariants, scorecard := check{"verify", l.verify, true}, check{"invariants", l.invariants, true}, check{"scorecard", l.scorecard, false}
 	// The step's check runs before the tests and the lanes wherever it runs: on the card it takes the turn for itself
 	// and gives it up after (Run), and the lanes take it again. Run after them, 13 of 26 checks on the card failed only
 	// once the tests and lanes had run, 204 minutes, where a second turn cost the landings 95 minutes in all since
 	// 10 Nov (verify-first/do, SQA-322).
-	return slices.Concat(early, []check{verify}, long, []check{scorecard})
+	return slices.Concat(early, []check{verify, invariants}, long, []check{scorecard})
 }
 
 // cardStages are the stages that use the card, the lanes and the scorecard's benchmark, a step's check on the card
@@ -870,20 +869,29 @@ func (l *landing) vet(ctx context.Context) error {
 
 // test runs every package; go test's cache replays a package whose inputs
 // did not change. No timeout is imposed: a test that must bound its own
-// wait does so.
+// wait does so. A ceiling the invariant packages, among them, say a count fell
+// under is lowered in the commit (lowerCeilings).
 func (l *landing) test(ctx context.Context) error {
-	return l.goTest(ctx, "test", "./...")
+	output, err := l.goTests(ctx, "test", []string{"./..."})
+	if err != nil {
+		return err
+	}
+	return l.lowerCeilings(ctx, output)
 }
 
 // invariantPackages are the packages whose tests hold the repository to its
 // own rules: what may be written where, which commands and documents refer to
-// what, and how a landing and the plan are shaped. A change that breaks one is
-// refused here, ahead of every other package's tests, and by the preflight.
+// what, and how a landing and the plan are shaped. A preflight runs them as a
+// stage of their own, a change that breaks one refused in minutes; a landing
+// runs them once, in its test stage with every other package (invariants).
 var invariantPackages = []string{"./internal/repoanalysis", "./internal/commanddoc", "./internal/landing", "./internal/plan"}
 
-// invariants runs the invariant packages' tests alone, those the repository
-// has: a tree without them, a fixture's, has no invariant to hold. A ceiling
-// they say a count fell under is lowered in the commit (lowerCeilings).
+// invariants runs the whole-tree tests (wholeTreeRun), which the test stage's ./... does not build, in a tree that has
+// the invariant packages: a tree without them, a fixture's, has no invariant to hold. A preflight, which has no test
+// stage, runs the invariant packages' suites with them, and a ceiling they say a count fell under is lowered
+// (lowerCeilings). A landing runs those suites in its test stage alone: run here too, the test stage ran them again,
+// internal/landing 252 s here and 292 s there at ff47d11d6, the dispatch refusal test 47 s and 41 s at 6862d5287
+// (SQA-516).
 func (l *landing) invariants(ctx context.Context) error {
 	held := slices.DeleteFunc(slices.Clone(invariantPackages), func(pattern string) bool {
 		_, err := os.Stat(filepath.Join(l.stageRoot(), filepath.FromSlash(pattern)))
@@ -896,18 +904,15 @@ func (l *landing) invariants(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if !l.Preflight {
+		_, err := l.goTests(ctx, "invariants", whole)
+		return err
+	}
 	output, err := l.goTests(ctx, "invariants", held, whole)
 	if err != nil {
 		return err
 	}
 	return l.lowerCeilings(ctx, output)
-}
-
-// goTest runs the tests of packages and says which of them ran rather than
-// replayed, under the stage's name.
-func (l *landing) goTest(ctx context.Context, stage string, packages ...string) error {
-	_, err := l.goTests(ctx, stage, packages)
-	return err
 }
 
 // testFailure is a failed run's refusal: the tests and packages it failed, from go test's -json output or from the line

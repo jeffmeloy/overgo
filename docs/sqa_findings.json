@@ -1,9 +1,9 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would take close-launcher/do (SQA-502) next and check publication identity (SQA-474) alongside it. A hand-started measurement should resume with its completed cells and publish its own result. The last close spent 9 h 14 min in lanes, which makes keeping verified work on retry the highest priority.",
-    "Before the next MOSS training proof I would keep media identity (SQA-507) and early rejection of wrong-sized held-out pictures (SQA-514) together. Master has filed both under training-identity/do. The check should cover the actual pixels consumed by the route.",
-    "For MOSS inference, SQA-515 removes 100.5 MiB of zero uploads per cold guided encode using a feed the executor already supports. I would take it when the encoder is next touched, behind the recovery and training fixes. The last matched first-request gap was 4.969 s before the encoder plan was shared. Subsequent cold prompt encodes took 3.45 s and 3.61 s. The next ordinary workflow timing can establish the current gap."
+    "I recommend close-launcher/do first (SQA-502). The November 25 run spent 9 h 14 min in lanes. Admitting the hand-started close fixes one way to lose completed work. A publication-only retry still reruns lanes. Before the next full close, I would also check that a concurrent publication cannot clear this run’s retry credit (SQA-474).",
+    "I would handle deleted fixtures (SQA-415) within lanes-record/record. Its proposed reuse rule relies on the same reader lookup that skips a missing MOSS or Needle fixture. The plan records seven passes of the MOSS checkpoint test at about 5.5 minutes each. Valid reuse saves repeated work only if a changed input invalidates its pass.",
+    "The working plan already puts moss-encoder-zeros/do (SQA-515) after the launcher. Its 100.5 MiB of avoidable uploads per cold guided encode follows from the source. Wall-time savings await a comparable run. Before the next MOSS training proof I would finish training-identity/do (SQA-507), which also owns the held-out size check."
   ],
   "branch": "master",
   "findings": [
@@ -11,66 +11,73 @@
       "id": "SQA-502",
       "severity": "P2",
       "files": [
-        "docs/plan.json",
-        "cmd/loop/main.go",
         "cmd/loop/trigger.go",
-        "cmd/loop/trigger_test.go",
         "cmd/loop/improve.go",
-        "cmd/validate/run.go",
-        "cmd/validate/reach.go",
-        "cmd/validate/cell_credit.go",
-        "cmd/validate/cell_credit_test.go",
+        "cmd/loop/trigger_test.go",
         "cmd/loop/improve_resume_test.go",
+        "cmd/validate/cell_credit.go",
         "internal/landing/lanes.go"
       ],
-      "input": "Dispatch moss-close/run at a pinned commit with an earlier scorecard and changed measured code. Interrupt the full close after a completed MOSS cell. Separately, let preflight, all lanes and all cells pass in the same cycle, then let only publication fail before it writes the scorecard. Retry that cycle with the same inputs.",
-      "expected": "Admit the full close through the existing cycle runner. Use its execution identity and cell credit to resume at the first unfinished cell. When only publication failed, publish from the completed run's verified evidence. Keep fresh lane checks for a new measurement or when the completed evidence cannot be matched to the run.",
-      "actual": "HandStartDue refuses a fresh run while this step is open. The November 25 launcher runs four validate commands without cycle credit or a linked run identity. An interrupted cell sequence starts again. measurePhases selects only reached cells and invokes preflight and all lanes even on a publication-only retry, as TestInterruptedCycleResumesAtItsFirstUnpassedPhase expects. The real-model lane uses -count=1. The closing run's lanes passed in 9 h 14 min 23 s of wall time. The rerun follows from source. No retry cost was measured."
+      "input": "With an earlier scorecard and changes to measured code, dispatch a step that requires a full scorecard. Interrupt its hand-started measurement after one completed cell. For the cycle runner itself, let only publication fail after all checks and cells pass, then retry with the same commit, store and obligations.",
+      "expected": "Use the existing cycle runner for a requested full measurement. Reuse completed cells under that run's identity. A publication-only retry may reuse the run's verified prerequisites when their inputs still match.",
+      "actual": "HandStartDue refuses the closing step. The November 25 launcher called validate directly, without the cycle's cell credit or execution identity. In the cycle runner, measurePhases reruns preflight and lanes even when only publication failed. The retained run spent 9 h 14 min 23 s in lanes. The repeated work follows from source; its retry duration was not measured."
     },
     {
       "id": "SQA-474",
       "severity": "P2",
       "files": [
         "cmd/loop/improve.go",
-        "cmd/loop/improve_test.go",
-        "cmd/loop/improve_resume_test.go",
         "internal/loop/driver.go",
-        "docs/plan.json",
-        "cmd/validate/main.go",
         "cmd/validate/scorecard.go",
-        "cmd/validate/readme.go",
-        "internal/scorecard/record.go"
+        "cmd/loop/improve_test.go",
+        "cmd/loop/improve_resume_test.go"
       ],
-      "input": "While a cycle at commit C is running its lanes, independently publish a scorecard for C to the same store on a later clock second. Let the cycle fail a required lane before it publishes. Separately, check moss-close/run with five numeric image rows already present and an older publication carrying a numeric MOSS row.",
-      "expected": "Use the specific publication produced or explicitly credited by this cycle. A failed lane returns its error with completed cells kept for retry. For moss-close/run, match the intended commit and required phase outcomes and render the README from that publication. The existing publisher already returns its path.",
-      "actual": "c21345fd7 fixes the earlier-record case when the directory stays unchanged. Measure still treats a growing record count as proof it published and returns the newest record at C. A separate validate -scorecard -publish can grow the directory without this cycle’s lock. Improve then files the other record’s gaps and Fill clears retry state despite the lane error. The close itself counts live rows and writeReadme takes the newest publication. The retained 5c9092545 record already has all five numeric image rows. These are source counterexamples. No wrong close or lost credit was observed."
+      "input": "While cycle C is checking its lanes, let another publisher write a scorecard for the same commit into the same store on a later clock second. Let C fail a required lane before it publishes.",
+      "expected": "C returns the lane error and keeps its retry state. Only a publication produced or explicitly credited by C supplies its proposals and permits Fill to clear that state. The existing publisher reports the path it wrote.",
+      "actual": "Measure treats an increase in the directory's record count as proof of publication and returns the newest record if its commit matches. Improve proposes from that record and calls Fill even with the lane error. Fill removes C's phase and cell credit. This follows from source. The retained case with an unchanged directory already rejects the older record."
+    },
+    {
+      "id": "SQA-415",
+      "severity": "P2",
+      "files": [
+        "internal/landing/lanes.go",
+        "internal/repoanalysis/tracked_documents.go",
+        "cmd/validate/lane_reach.go",
+        "cmd/validate/lane_reach_test.go",
+        "internal/seq2seq/upstream_calls_model_test.go",
+        "internal/latentimage/moss_golden_test.go"
+      ],
+      "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
+      "expected": "A removed fixture reaches the test package that consumed it, or the lane runs when the reader is unknown. Apply this to the reach decision used by lanes-record/record before it credits a previous pass.",
+      "actual": "TrackedDocuments lists files still present. documentReaders therefore has no entry for either deleted fixture. In discover, an absent entry yields zero readers, so -reached can omit the test that would fail on the missing input. Existing checks cover edits while the fixtures exist. This follows from source."
+    },
+    {
+      "id": "SQA-515",
+      "severity": "P2",
+      "files": [
+        "internal/latentimage/model_encoder.go",
+        "internal/latentimage/model_encoder_windows.go",
+        "internal/model/cache_schema.go",
+        "internal/cuda/executor/executor.go"
+      ],
+      "input": "Run the first guided MOSS Ultra text-to-image request with both prompts uncached. Its Qwen3.5-9B encoder has 24 recurrent layers. Each starts the two prompts with separate zero convolution and recurrent states.",
+      "expected": "Use the executor's existing reference.ZeroValue for both initial states. Preserve the bit-exact hidden states and the one-block device-memory bound already checked by TestATextEncoderHoldsOneBlockOnTheCard. The zero inputs should require no host payload or host-to-device transfer.",
+      "actual": "Source at ab55e884d: compileModelEncoderFrom allocates both states as float32 slices. encodeEach passes them to Retain, and the executor copies materialized inputs into host staging and uploads them. Per layer and prompt the states contain 3 x 8192 and 128 x 128 x 32 floats. Across 24 layers and two prompts that is 100.5 MiB of zeros uploaded per cold guided encode. The same executor initializes shape-only zero inputs on the device. The byte count follows from the model and code. The timing record does not isolate these transfers."
     },
     {
       "id": "SQA-507",
       "severity": "P2",
       "files": [
         "cmd/train/route_moss_windows.go",
+        "cmd/train/route_moss_heldout_windows_test.go",
         "cmd/train/route_codec.go",
         "cmd/train/shared_run.go",
         "internal/trainingworkflow/bootstrap_recipe.go",
-        "internal/trainingworkflow/data.go",
         "cmd/validate/training_proof.go"
       ],
-      "input": "Keep the training manifest identical but change the pixels of a listed MOSS picture or the first frame of a listed codec clip. Within a MOSS run, start with distinct training and held-out pictures A and B, then replace B with a copy of A after the split check and before held-out preparation.",
-      "expected": "Bind the dataset, split, processor, checkpoint and validation proof to the ordered examples and preprocessing actually used. Preserve identities across directories for identical inputs. Prepare the admitted inputs or verify their identity when consumed, so the held-out score is earned on the admitted split.",
-      "actual": "Both routes pass only the manifest to openSessionAs. BootstrapRecipe uses TextAuthority on its bytes and groundTraining accepts the TSV, so changed media keep the same recorded identities. MOSS now compares decoded pixels at admission, but mossPrepare reopens the paths and never compares the new values with the admitted ones. In the A/B case judge uses A as held out after training on A. These counterexamples follow from source. No substituted-media run was observed."
-    },
-    {
-      "id": "SQA-514",
-      "severity": "P2",
-      "files": [
-        "cmd/train/route_moss_windows.go",
-        "cmd/train/route_moss_heldout_windows_test.go",
-        "internal/latentimage/vae_encoder_windows.go"
-      ],
-      "input": "Use the compact MOSS training route with its valid model, three 32 x 32 training pictures and -size 32. Give -heldout one distinct, decodable 16 x 16 PNG and supply -report.",
-      "expected": "Reject the held-out picture with its path and the required 32 x 32 dimensions while the route already has the decoded shape, before creating a device encoder or preparing any training caption. Use the same size check as interleavedRows.",
-      "actual": "refuseTrainedHeldOut sees [3,16,16] and accepts it because its digest differs from the training pictures. trainMOSS completes mossPrepare for all three training pictures and captions, then opens and binds the held-out picture encoder. Only then does interleavedRows reject the dimensions. Source-demonstrated at ab55e884d; the discarded preparation was not timed."
+      "input": "Use identical manifest text with different MOSS pixels or a different first codec frame. In a separate MOSS run, replace held-out B with training image A after split admission. For the size case (SQA-514), use three valid 32 x 32 training pictures, -size 32, -report and a distinct 16 x 16 held-out PNG.",
+      "expected": "Bind session, checkpoint and proof identities to the ordered media and preprocessing actually consumed. Identical inputs in different directories keep their identity. Check the held-out decoded shape and split before opening the GPU encoder, and consume those admitted pixels or verify them when read again.",
+      "actual": "Both routes supply only manifest bytes to TextAuthority, so changing media can leave dataset, split and processor identities unchanged. MOSS checks decoded pictures, then mossPrepare reopens the paths and can score A as held out after training on A. A distinct 16 x 16 picture passes the split check. Only after all three training pictures and captions have been prepared and the held-out encoder opened does interleavedRows reject it. All three cases follow from source."
     },
     {
       "id": "SQA-494",
@@ -83,6 +90,19 @@
       "input": "Start the landing fixture with unformatted internal/p/p.go. After gofmt writes it and recordWrites records that path, append a separate, valid function for the next step to the same file before fix calls shipSet. The first step’s assertion on the original function still passes.",
       "expected": "Publish only the first candidate and the gate’s edits to those bytes. Leave the later function in the checkout for its own step. Use the existing candidate or keep the exact output of the transformation. The snapshot fixture can distinguish both copies with this same-file edit.",
       "actual": "b9bac4955 protects other paths, including later.go and notes.txt in the existing fixture. recordWrites keeps a boolean for p.go after comparing its hashes. A later capture starts at the first tree but stages the current checkout bytes of every gateWrote path, including the later function in p.go. The earlier cross-step landing was observed at b1d6e237a. This remaining case was established from source at 70394cb96."
+    },
+    {
+      "id": "SQA-487",
+      "severity": "P2",
+      "files": [
+        "cmd/loophook/main.go",
+        "cmd/loophook/sessions_test.go",
+        "internal/plan/stop_request.go",
+        "cmd/plan/dispatch.go"
+      ],
+      "input": "A named lead holds the worktree and has asked to pause. Before its stop is recorded, the prompt hook receives a progress question without a session_id. The harness’s nameless-hook path is covered in sessions_test.go.",
+      "expected": "Preserve the holder’s pending stop request. Only a prompt attributable to the holding session should change its authorization. A nameless hook may still take its existing shared turn snapshot.",
+      "actual": "be631dfc3 fixes the named reviewer and visitor cases and the direct negation “don’t stop.” With no session_id, holdWorktree returns an empty string before reading the holder. beginTurn treats that value as permission to call NoteStopRequest, which removes the lead’s request on the progress prompt. RequireStopRequest then refuses the authorized pause. This residual case follows from source. No missed pause was observed."
     },
     {
       "id": "SQA-508",
@@ -99,84 +119,6 @@
       "actual": "decodeMCPResponse returns result unchanged when the envelope has no error. With normal persistence, closeMutationReceipt writes StageCompleted for the failed mutation. A failed inspection also sets session.Inspection. RestoreSession reconstructs that credit from the recorded manual and arguments. The writer test checks the flag, while the HTTP client fixture returns only a success. These are source counterexamples."
     },
     {
-      "id": "SQA-515",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/model_encoder.go",
-        "internal/latentimage/model_encoder_windows.go",
-        "internal/model/cache_schema.go",
-        "internal/cuda/executor/executor.go"
-      ],
-      "input": "Run the first guided MOSS Ultra text-to-image request with both prompts uncached. Its Qwen3.5-9B encoder has 24 recurrent layers. Each starts the two prompts with separate zero convolution and recurrent states.",
-      "expected": "Use the executor's existing reference.ZeroValue for both initial states. Preserve the bit-exact hidden states and the one-block device-memory bound already checked by TestATextEncoderHoldsOneBlockOnTheCard. The zero inputs should require no host payload or host-to-device transfer.",
-      "actual": "Source at ab55e884d: compileModelEncoderFrom allocates both states as float32 slices. encodeEach passes them to Retain, and the executor copies materialized inputs into host staging and uploads them. Per layer and prompt the states contain 3 x 8192 and 128 x 128 x 32 floats. Across 24 layers and two prompts that is 100.5 MiB of zeros uploaded per cold guided encode. The same executor initializes shape-only zero inputs on the device. The byte count follows from the model and code. The timing record does not isolate these transfers."
-    },
-    {
-      "id": "SQA-492",
-      "severity": "P2",
-      "files": [
-        "internal/server/webui/composer.js",
-        "internal/server/webui/mod/chat.js",
-        "internal/server/webui_browser_generated_media_test.go",
-        "internal/latentimage/source_latent_windows.go"
-      ],
-      "input": "In the composer's MOSS image-to-image mode, open two stored PNG output cards, A and B, and use each as input for the same picture slot, A first. Let B's content request return first, then A's. Submit after both return.",
-      "expected": "Select B by its stored output ID and declared image type when its button is clicked. The picture slot needs no blob fetch to set that value. Keep the existing file download for the attachment path that actually consumes bytes. Extend the generated-media browser case to inspect the submitted ID after the two clicks.",
-      "actual": "Source counterexample at cb82910a6. The gallery supplies each card's artifact ID and MIME type. mediaCard waits for api.blob, constructs a File and calls reuse. The slot branch in chat.js uses the file type to choose the field, then assigns the ID. B is selected first and A overwrites it when the older fetch returns. Request.ReadPictures now accepts both output IDs, so the model can draw from A. The retained single-card check verifies one slot assignment. The two-click failure was not observed in a run."
-    },
-    {
-      "id": "SQA-493",
-      "severity": "P2",
-      "files": [
-        "internal/server/webui/mod/generation.js",
-        "internal/server/webui/workflow.js",
-        "internal/server/generation_preview_windows_test.go"
-      ],
-      "input": "In MOSS depth control, request the preview for picture A. While that response is pending, choose B and then A again. Let A's response display its map. Select B once more without requesting another preview.",
-      "expected": "On the last selection of B, clear A's map. Associate a displayed response with its picture and settings using the existing showing value, or discard a response once its original selection was invalidated. Keep preview generation on the button press. The held-response case can exercise this sequence with one estimate.",
-      "actual": "Source counterexample at cb82910a6. Selecting B clears showing. Returning to A leaves showing null. A's response passes madeFrom() === asked and inserts the image without restoring showing. The last switch to B cannot clear the map because offer requires showing !== null. The existing browser case covers changing away once and clearing an already displayed map. This return-to-A sequence was not run."
-    },
-    {
-      "id": "SQA-415",
-      "severity": "P2",
-      "files": [
-        "internal/landing/lanes.go",
-        "internal/repoanalysis/tracked_documents.go",
-        "cmd/validate/lane_reach.go",
-        "cmd/validate/lane_reach_test.go",
-        "internal/seq2seq/upstream_calls_model_test.go",
-        "internal/latentimage/moss_golden_test.go"
-      ],
-      "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
-      "expected": "CycleLanesReached selects the reader of the removed fixture, so the Needle or MOSS check reports the missing input. Use the existing reader lookup for deleted paths, or run the lane when its readers are unknown. Keep the current package selection for edits to existing fixtures.",
-      "actual": "Source trace at c71a1e230. The Git diff supplies the deleted path. TrackedDocuments lists only files still present, so documentReaders returns no entry. discover treats the missing entry as zero readers and omits the lane. Both checks fail on the missing file if selected. The retained gate verified selection for edits to both fixtures while they were present."
-    },
-    {
-      "id": "SQA-388",
-      "severity": "P2",
-      "files": [
-        "cmd/comfy-reference/record.go",
-        "cmd/comfy-reference/record_test.go",
-        "cmd/comfy-reference/recordings_modeltest_test.go"
-      ],
-      "input": "Record two different PNGs returned by node 449 with the same basename original.png in subfolders MOSS/a and MOSS-a of the same recording.",
-      "expected": "Keep each output under a distinct name and leave both recorded hashes verifiable. The recorder already computes the content hash and its existing two-output case can check both names and bytes.",
-      "actual": "Source counterexample at 39ffd57e1. keep replaces a slash with a hyphen. Both files are written as 449-MOSS-a-original.png. The second write replaces the first file. The recording can finish with two different hashes for that path, and its reader then rejects the earlier entry. Producer validation on resume, separate resumed memory reporting and distinct prompt IDs for paired runs are now in place."
-    },
-    {
-      "id": "SQA-487",
-      "severity": "P2",
-      "files": [
-        "cmd/loophook/main.go",
-        "cmd/loophook/sessions_test.go",
-        "internal/plan/stop_request.go",
-        "cmd/plan/dispatch.go"
-      ],
-      "input": "A named lead holds the worktree and has asked to pause. Before its stop is recorded, the prompt hook receives a progress question without a session_id. The harness’s nameless-hook path is covered in sessions_test.go.",
-      "expected": "Preserve the holder’s pending stop request. Only a prompt attributable to the holding session should change its authorization. A nameless hook may still take its existing shared turn snapshot.",
-      "actual": "be631dfc3 fixes the named reviewer and visitor cases and the direct negation “don’t stop.” With no session_id, holdWorktree returns an empty string before reading the holder. beginTurn treats that value as permission to call NoteStopRequest, which removes the lead’s request on the progress prompt. RequireStopRequest then refuses the authorized pause. This residual case follows from source. No missed pause was observed."
-    },
-    {
       "id": "SQA-283",
       "severity": "P2",
       "files": [
@@ -188,43 +130,56 @@
       ],
       "input": "A serving or training observation published by servingattempt.Record or trainingworkflow.Observer.finish when (a) the recipe-state read fails and the incoming Verification is empty, or (b) the same recipe is activated again, verified, after the recorded attempt executed it not verified.",
       "expected": "Publication carries the state the executed recipe and task had at execution. A failed state read is told apart from a historical absent state and earns no verified credit, and a later activation does not replace execution-time state. Legacy bytes, the own-verifying-run exception and partial or cancelled results keep their contract.",
-      "actual": "The two remaining owners still read state at publication and drop the lookup error: servingattempt.Record (servingattempt.go:117-119) and Observer.finish (session_observation.go:271-273). A failed read leaves an empty Verification; scorecard.unverifiedAside rejects only explicit not-verified/broken and accepts that empty value as legacy. A later same-recipe activation is written as the attempt's state in place of its execution-time not-verified state. Shown from source at 8acbf71d17dfd3e1e35313b370f900b21f0fdf10; no SQA execution."
+      "actual": "servingattempt.Record and Observer.finish read recipe state when publishing and drop lookup errors. A failed read can leave Verification empty, which unverifiedAside accepts as legacy. A later activation of the same recipe can supply verified state for an attempt that ran unverified. Both cases follow from source."
+    },
+    {
+      "id": "SQA-492",
+      "severity": "P2",
+      "files": [
+        "internal/server/webui/composer.js",
+        "internal/server/webui/mod/chat.js",
+        "internal/server/webui/mod/generation.js",
+        "internal/server/webui_browser_generated_media_test.go",
+        "internal/server/generation_preview_windows_test.go",
+        "internal/server/webui/workflow.js"
+      ],
+      "input": "Select stored PNG A, then B, for a MOSS image-to-image slot. Let B's fetch finish first, then submit after both complete. In depth control, ask for A's preview, switch to B and back to A before the response, display it, then choose B once more.",
+      "expected": "Submit B in the first case and clear A's map on the final switch to B in the second. Set a stored-picture slot from the clicked artifact ID and MIME type. Download bytes for attachments that consume them. Associate a displayed preview with its current picture and settings.",
+      "actual": "mediaCard fetches a blob before calling reuse. The older response can overwrite B's artifact ID with A's. In depthPreview the first switch to B clears showing. A's response can then display after the return to A without restoring showing, so the final switch to B leaves A's map visible. Both event orders follow from source. The existing checks cover a single card and a single switch away."
     },
     {
       "id": "SQA-342",
       "severity": "P2",
       "files": [
-        "internal/evaluation/image_retrieval.go",
-        "internal/tensorstats/paired_binary.go",
-        "internal/evaluation/generated_video_matching.go",
-        "cmd/evaluate/motion_windows_model_test.go",
-        "cmd/evaluate/judge_calibration_windows_model_test.go",
-        "internal/evaluation/evidence_index.go",
-        "internal/scorecard/record.go",
-        "internal/scorecard/output_pairing_test.go",
         "cmd/evaluate/second_judge_windows_model_test.go",
+        "internal/tensorstats/paired_binary.go",
         "internal/evaluation/soft_answer.go",
-        "cmd/evaluate/video_super_res_judged_windows_model_test.go",
-        "internal/evaluation/preset_admission.go",
         "cmd/evaluate/preset_reading.go",
-        "internal/evaluation/instruction_acceptance.go",
-        "internal/evaluation/preset_admission_test.go",
-        "cmd/evaluate/preset_reading_test.go",
+        "internal/evaluation/media_inputs.go",
+        "internal/evaluation/preset_admission.go",
         "cmd/evaluate/render.go",
-        "internal/runrecord/record.go",
-        "internal/mediacapability/controls_cuda_windows.go",
+        "cmd/evaluate/readings.go",
         "internal/mediacapability/preset_readings.go",
         "internal/mediacapability/preset_readings.json",
+        "internal/mediacapability/preset_verdicts_test.go",
         "internal/mediacapability/preset_readings_windows_test.go",
-        "cmd/evaluate/readings.go",
-        "cmd/evaluate/readings_test.go",
-        "cmd/evaluate/render_resume_test.go",
-        "cmd/evaluate/preset_binding_test.go",
-        "internal/evaluation/media_inputs.go"
+        "internal/mediacapability/controls_cuda_windows.go"
       ],
-      "input": "(3) Gemma accuracy over 32 independent media, each with two uniformly guessed 3-choice questions. (4) Two judges ranked on all-constant finite scores, and on probabilities (.9,.1) against (.45,.45). (6) Two GIF media inputs for their own bound renders, with one judge and scorer, decoded at 16 frames against 1. (7) The embedded SenseNova APG verdict edited to 0 wins, 524 losses, 0 ties, 80 media and tail 0.0001, Admitted left true, with Says changed consistently to 'admitted: a gain beyond chance, 0 wins, 524 losses and 0 ties over 80 media'; its evaluation IDs stay unchanged. (8) A render campaign resumed after an earlier item's request changed while its last item drew the same, or with truncated bookkeeping.",
-      "expected": "(3) The accuracy null matches the actual choice counts and within-media dependence. (4) Ranking uses the aggregation production scores with, and an undefined tau or omitted resamples are said, without a panic. (6) A reading is admitted only from evaluations bound to the same render, decode sampling and question contract, and a control offers a candidate only by the admission for its own model, recipe and request. (7) The record's verdict, counts and tail are derived through AdmitPreset and its bound evaluations, so drift is refused. (8) A completed arm or verdict is reused only for the same bound inputs, evaluator and producer; changed work is refused or redone, and truncated bookkeeping does not count as complete.",
-      "actual": "(3) Correct count minus sum(1/choices) against zero is taken as a fair sign for ExactPairedBinary: a medium is positive with probability 5/9, and uniform guessing passes the 22-positive threshold (nominal tail 0.0250512) with probability 0.0914273, above the 0.05 level. (4) Arithmetic probability means rank (.9,.1) above (.45,.45), the reverse of production softShare's geometric mean; constant scores give a NaN tau, all 2000 resamples are dropped and resampledTau indexes an empty slice. (6) judgedRender compares content, request, producer, runtime and scorer but not MediaInput.Decode or the question contract, readRender never calls verifyRendered, ResolveActiveExecution takes the current activation, and the embedded offering uses recorded no-loss flags (plus a recorded gain for guidance methods) under a published model name/preset key, without runtime recipe/request binding. (7) The native record test checks evaluation-ID syntax, displayed counts and admitted/refused wording, but does not recompute Admitted or Tail through AdmitPreset and the bound evaluations. Gained trusts Tail <= falseGain, so the consistently worded false gain in input 7 passes the record and gain checks and offers APG on SenseNova's page despite its stated 524 losses and zero wins. (8) Arm, suite and verdict skips trust names and file existence and accept truncated bookkeeping, and a new build is validated by re-rendering only the last item. Remaining counterexamples shown from source and arithmetic at 0c24aca5b670940f95c0f8156c13804a9e2fd9ea; no SQA execution."
+      "input": "For calibration, guess two independent three-choice questions on each of 32 independent media. Compare constant judge scores, then grouped probabilities (.9,.1) and (.45,.45). For admission, compare GIF arms decoded at 16 frames and one. In the embedded SenseNova APG verdict keep its evaluation IDs, set 0 wins, 524 losses, 0 ties, 80 media, Tail=.0001 and Admitted=true, and match the displayed counts and gain wording. For recovery, resume with a build that changes an earlier reused draw but reproduces the last one, or a verdict line truncated after the arm name and the opening JSON brace.",
+      "expected": "Validate calibration against the chance distribution of the questions on each medium. Rank using the production aggregation and report an undefined interval for tied scores. Bind preset admission to comparable questions, decoding, producer, judge and request. Derive counts and tails from the bound evaluations. Credit a resumed result only when its inputs and evidence still match.",
+      "actual": "The sign test assumes a fair sign, but the guessing case is positive with probability 5/9. It clears the nominal 5% threshold 9.14% of the time. Arithmetic means reverse softShare's geometric ranking on the given pair. Constant scores leave resampledTau indexing an empty slice. judgedRender omits decode and question identity, readRender reads the manifest without verifying its draws, and admission resolves the current activation. The offering uses stored flags and tail by model name and preset. A consistently worded 0-win APG gain passes verdictSaid and Gained. Recovery skips arms and verdicts by name, skips an existing suite, and checks only the last reused draw before drawing more at a new build. These are source and arithmetic counterexamples."
+    },
+    {
+      "id": "SQA-388",
+      "severity": "P2",
+      "files": [
+        "cmd/comfy-reference/record.go",
+        "cmd/comfy-reference/record_test.go",
+        "cmd/comfy-reference/recordings_modeltest_test.go"
+      ],
+      "input": "Record two different PNGs returned by node 449 with the same basename original.png in subfolders MOSS/a and MOSS-a of the same recording.",
+      "expected": "Keep each output under a distinct name and leave both recorded hashes verifiable. The recorder already computes the content hash and its existing two-output case can check both names and bytes.",
+      "actual": "keep replaces each slash in the subfolder with a hyphen. Both responses are written as 449-MOSS-a-original.png. The second write replaces the first, leaving two hashes for one path and causing verification of the first entry to fail. Source counterexample."
     },
     {
       "id": "SQA-346",
@@ -237,8 +192,8 @@
         "internal/evaluation/observation_binding_test.go"
       ],
       "input": "A retained ClipMotion observation of unchanged MP4 bytes, then a motion encoder checkpoint or FFmpeg/preprocessing configuration changes under the same encoder basename. The suite is compiled again with that old observation and the same matching clip-content digest.",
-      "expected": "Motion readings identify the encoder/checkpoint and decoder/sampling contract that produced them, so changed instruments cannot silently reuse or be credited with an old metric. Keep the repaired OCR re-keying, content checks and whole-set exclusion in the existing media compiler and observation producers; the observation instrument is separate from the answering judge.",
-      "actual": "The remaining motion instrument is not bound: writeMotion passes filepath.Base(encoderPath) to measureMotion; ClipMotion stores that Encoder string and clip/source content digests, with no encoder/checkpoint or FFmpeg/sampling identity. ClipMotion.validate requires only a nonempty encoder name, and bindObservations compares clip.Content alone before keeping the motion set. Changing an instrument while the clip bytes and encoder basename stay the same therefore leaves the old motion admissible and its actual producing instrument indistinguishable. Shown from source at ba0405e63d92653b84f617d8c332d5546529e444; no SQA execution."
+      "expected": "Bind the observation to the encoder checkpoint and decoding and sampling settings used to produce it. Reuse a motion reading only when that identity and the clip content both match.",
+      "actual": "writeMotion passes the encoder basename. ClipMotion.validate checks that it is nonempty, and bindObservations compares the clip content. A changed checkpoint under the same name, or changed decoding settings on identical bytes, therefore leaves the old metric admissible. Source counterexample."
     }
   ],
   "master_lead_triage": {
@@ -286,13 +241,6 @@
           "landing-snapshot/do"
         ],
         "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid, observed at b1d6e237a (moss-page/restored published own-run's edit) and from source (shipSet recaptures the checkout at fix, derive and a lowered ceiling, the last after invariants). Filed as landing-snapshot/do, ahead of observed-inputs/rule, which keeps passes for a candidate's inputs. Implemented 2026-11-25 by landing-snapshot/do, the landing that carries this answer: a later capture stages onto the first and takes only what the gate's own stages wrote; any other later edit stays in the checkout for its own step, named (TestALandingPublishesTheTreeItFirstCaptured), for the review's recheck."
-      },
-      "SQA-493": {
-        "action": "implemented",
-        "rows": [
-          "moss-pictures/stale-preview"
-        ],
-        "note": "Answered by the lead on 2026-11-24 at b0dc71f35: valid from source (depthPreview shows its answer whatever the form holds when it comes, and offer hides it only with no picture chosen); not observed. Filed as moss-pictures/stale-preview, with the page's other picture defects, before the campaign closes. Implemented 2026-11-24 by moss-pictures/stale-preview (e4e257ffc), for the review's recheck."
       },
       "SQA-492": {
         "action": "implemented",

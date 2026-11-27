@@ -82,10 +82,12 @@ func compileModelEncoderFrom(plan model.ModelPlan, catalog hfgguf.LanguageCatalo
 			if err != nil {
 				return nil, err
 			}
+			// A recurrent layer starts each prompt from zero states the card makes (reference.ZeroValue), where float32
+			// zeros had been staged and uploaded, 100.5 MiB a guided request's two prompts through MOSS Ultra's
+			// encoder (SQA-515).
 			zero := func(label string, shape tensor.Shape) *tensor.Tensor {
 				node := b.Input(fmt.Sprintf("conditioning.%d.%s", layer, label), dtype.F32, shape)
-				n, _ := shape.Elements()
-				p.feeds[node] = reference.Value{Shape: shape, Data: make([]float32, n)}
+				p.feeds[node] = reference.ZeroValue(shape)
 				return node
 			}
 			context.PastKey = zero("convolution", schema.Primary.Key.Value.Shape)

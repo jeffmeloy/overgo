@@ -484,12 +484,12 @@ func loadResidentWeights(
 				return err
 			}
 			// The open's allocations take their commit from an ordinary commit made first, which Windows grows the page
-			// file for at once, as it does not for the driver's requests; where the machine cannot make it, the homing
-			// gives the card's experts their copies from the commit left (HomeExperts).
+			// file for at once, as it does not for the driver's requests; where the machine cannot make it, the open
+			// waits while overgo's own other processes hold the shortfall, and otherwise fails at once naming the
+			// figures, before it pins anything (ReserveOpenCommit).
 			if len(fileBackedExperts) != 0 {
 				if err := worker.Do(ctx, func(state *device.State) error {
-					modeldevice.ReserveOpenCommit(state, fileBackedExperts)
-					return nil
+					return modeldevice.ReserveOpenCommit(state, fileBackedExperts)
 				}); err != nil {
 					return err
 				}

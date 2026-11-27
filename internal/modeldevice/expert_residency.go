@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math/bits"
+	"os"
 	"slices"
 	"strings"
 	"unsafe"
@@ -16,6 +17,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
+	"overgo/internal/processcontrol"
 	"overgo/internal/tensor"
 )
 
@@ -496,19 +498,23 @@ const expertOpenStagingCommitBytes = 8 << 30
 // now, a host copy of every expert of the file-backed banks, expertOpenStagingCommitBytes and
 // expertHomeCommitReserveBytes. Windows grows a system-managed page file at once for an ordinary commit past its limit
 // but not for the driver's requests (driver.Library.ReserveCommit), so the allocations then take their commit from it,
-// and HomeExperts gives every card expert its copy where it holds. It answers whether the machine made it: where the
-// page file cannot grow so far, the open goes on without it and the homing gives copies from the commit left.
-func ReserveOpenCommit(state *device.State, experts []gguf.TensorInfo) bool {
+// and HomeExperts gives every card expert its copy where it holds. Where the machine cannot make it, its own figures
+// decide (processcontrol.TakeCommit): the open waits while overgo's own other processes hold the shortfall, and
+// otherwise fails at once naming the commit it needs, the commit left and the limit, where it had gone on unreserved
+// and met the limit mid-load as a pinning failure (Flash-Next on 2026-11-24, flashnext-memory/reserve).
+func ReserveOpenCommit(state *device.State, experts []gguf.TensorInfo) error {
 	free, _, err := state.Driver.MemInfo()
 	if err != nil {
-		return false
+		return err
 	}
 	need := free + expertOpenStagingCommitBytes + expertHomeCommitReserveBytes
 	for _, info := range experts {
 		// Each expert lies in a slot rounded up to expertSlotAlignment.
 		need += info.Size + info.Shape[expertBankAxis]*expertSlotAlignment
 	}
-	return state.Driver.ReserveCommit(need) == nil
+	return processcontrol.TakeCommit(need, "the open's experts, their staging and the card's share", func() error {
+		return state.Driver.ReserveCommit(need)
+	}, os.Stderr)
 }
 
 // ExpertHomes is what a homing gave the card's experts: Homed their pinned copies, CardOnly those left to the card

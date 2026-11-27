@@ -13,3 +13,6 @@ var counterOrigin = time.Now()
 func Counter() (time.Duration, error) {
 	return time.Since(counterOrigin), nil
 }
+
+// ProcessCommit reads no other process's commit off Windows, where nothing waits on it.
+func ProcessCommit(uint32) (uint64, error) { return 0, nil }

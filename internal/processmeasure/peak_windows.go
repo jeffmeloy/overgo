@@ -80,6 +80,28 @@ func PeakWorkingSet(handle syscall.Handle) (uint64, error) {
 	return uint64(counters.PeakWorkingSetSize), nil
 }
 
+// processQueryLimited and processVMRead are the access a process's memory counters are read with.
+const (
+	processQueryLimited = 0x1000
+	processVMRead       = 0x0010
+)
+
+// ProcessCommit reports the commit another process holds as its own, its memory counters' PrivateUsage, which a
+// process short of commit reads of overgo's other processes (processcontrol.TakeCommit).
+func ProcessCommit(pid uint32) (uint64, error) {
+	handle, err := syscall.OpenProcess(processQueryLimited|processVMRead, false, pid)
+	if err != nil {
+		return 0, fmt.Errorf("measurement: open process %d: %w", pid, err)
+	}
+	defer syscall.CloseHandle(handle)
+	var counters processMemoryCounters
+	counters.Size = uint32(unsafe.Sizeof(counters))
+	if result, _, callErr := getProcessMemoryInfo.Call(uintptr(handle), uintptr(unsafe.Pointer(&counters)), uintptr(counters.Size)); result == 0 {
+		return 0, fmt.Errorf("measurement: process %d's memory: %w", pid, callErr)
+	}
+	return uint64(counters.PrivateUsage), nil
+}
+
 // getProcessIOCounters is GetProcessIoCounters, which fills an IO_COUNTERS.
 var getProcessIOCounters = syscall.NewLazyDLL("kernel32.dll").NewProc("GetProcessIoCounters")
 

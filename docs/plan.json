@@ -3,27 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-memory",
-      "title": "Flash-Next's server takes the commit it needs before it pins, waiting while overgo's own processes hold the shortfall and otherwise failing at once with the needed, free and limit figures",
-      "steps": [
-        {
-          "id": "reserve",
-          "title": "Flash-Next's server takes the commit it needs before it pins, waiting while overgo's own processes hold the shortfall and otherwise failing at once with the needed, free and limit figures",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestACommitShortfallWaitsOrFailsOnTheMachinesFigures$'",
-          "files": [
-            "internal/processcontrol",
-            "internal/processmeasure",
-            "internal/cuda/driver",
-            "internal/modeldevice",
-            "internal/inference",
-            "cmd/server",
-            "internal/evaluation"
-          ],
-          "rationale": "Refiled on 2026-11-25 from flashnext-memory/pin at the owner's review of that day, checked by the lead: (1) valid, pin's check was the acceptance test, which passes on a quiet machine with no change: twice on record at 116.5 GiB, and seven Flash-Next tests peaking at 115.8 to 116.3 GiB passed in the closing run's internal/inference and cmd/evaluate on 2026-11-25 with the machine kept quiet; so the check passed with the change's production Go restored. (2) valid, pin's title promised a pass whatever else holds commit, which no change gives where the rest of the machine holds more than the limit leaves.\n\nThe evidence: on 2026-11-24 (the lanes at 5f5d4db92) the Strata round's pinning failed, cuMemHostAlloc out of memory with 54.6 GB pinned and 44.8 GB on the card, the machine at 0.0 GiB of commit left of 156.8, the tree at 116.2 GiB, the rest of the machine at 40.6 GiB. The library already takes an ordinary commit ahead of its pins (driver.ReserveCommit, which grows a system-managed page file at once where the driver's requests fail at the limit), so first read where the reservation is sized and given back for Flash-Next's open and Strata round, and why the pins met the limit with it: too small, given back early, or taken after the rest of the machine took the page file's growth.\n\nThe change: the server's tree takes the commit it needs before it pins, on a decision read from the machine's own figures, needed (the reservation's bytes), left and limit (processcontrol.MachineCommit after the ordinary commit's attempt), and the commit overgo's own processes hold: the reservation had, it goes on; short while overgo's own processes hold the shortfall, it waits for them as a card turn waits; short beyond that, it fails at once with an error naming needed, left and limit, before any pin. A shortfall is then said, not met as a pinning failure, and the bound is the machine's.\n\nCheck: TestACommitShortfallWaitsOrFailsOnTheMachinesFigures, the decision over stated figures: enough left goes on; a shortfall overgo's own processes hold waits; a shortfall beyond them fails naming the three figures. It lands in internal/processcontrol unless the decision belongs elsewhere, the check then moved with -setverify. The acceptance test stays in the models lane.\n\nNote: No boundary test: the decision the check tests is new code, so the check cannot build at the base and fails there by its absence; no test of code the base holds can state the decision's three outcomes, as the base has no decision, only a pin that fails at the limit.\n\nNote: files set to internal/processcontrol, internal/processmeasure, internal/cuda/driver, internal/modeldevice, internal/inference, cmd/server, internal/evaluation: The reservation the open makes is in internal/modeldevice (ReserveOpenCommit), and a process's own commit is read in internal/processmeasure, the owner of psapi's calls (ProcessCommit)"
-        }
-      ]
-    },
-    {
       "id": "training-identity",
       "title": "A training route's dataset, split and processor identities bind the examples and preprocessing it consumes, not the manifest's bytes alone",
       "steps": [

@@ -1,8 +1,8 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "For time to commit, I would narrow the early gate to checks that can reject the candidate cheaply, then run the remaining integration coverage once (SQA-516). On November 27 three landings spent about 48 of 54 minutes in invariants and general tests. Judge a change by elapsed time to the first failure and to a successful landing. Parallel test durations cannot be added as savings.",
-    "I would finish lanes-record/record with the deleted-fixture case (SQA-415). It addresses repeated slow tests after a commit. Its reuse rule needs to rerun the reader when a fixture disappears. The proposed per-test record leaves the ordinary commit gate's two overlapping host stages in place.",
+    "For faster commits, I would keep SQA-516 first. The two lanes-record landings spent about 25 minutes combined in invariants and general tests. Only part of that work overlaps. Judge a change by time to the first actionable failure and elapsed time to land.",
+    "The two lanes-record changes landed. Before using the whole-run verdict for MOSS, I would make it agree with the runner about missing checkpoints (SQA-517) and make a deleted fixture invalidate its reader's pass (SQA-415). Both belong with the existing test selection and result readers. Flash-Next's planned memory reservation addresses a measured pinning failure and can proceed independently.",
     "Before the next full measurement I would settle publication-only retry (SQA-502) and which run owns a publication (SQA-474). Before the next training proof, training-identity/do owns media identity and held-out admission (SQA-507)."
   ],
   "branch": "master",
@@ -21,6 +21,18 @@
       "actual": "invariants runs four full ordinary package suites before the step verifier. At 692c145aa the scorecard-history fixture took 66 s inside a 9 min 28 s stage before a 9 s verifier. On the refused journey-attach/do attempt, invariants took 215 s before the 9.7 s failure. After a passing verifier, test requests ./... again. At 6862d5287 the dispatch refusal test ran for 47 s then 41 s, and the trunk protection test for 29 s then 35 s. End-to-end savings are unmeasured."
     },
     {
+      "id": "SQA-517",
+      "severity": "P2",
+      "files": [
+        "cmd/validate/passed_since.go",
+        "cmd/validate/test_steps.go",
+        "cmd/validate/passed_since_test.go"
+      ],
+      "input": "At the requested commit let the other lanes have current passes. In the models lane keep a current pass for TestMOSSSamplingCheckpoint and no result for the required TestMOSSGenerationCheckpoint after an interrupted run. All other retained models results are current. Ask validate -lanes-passed-at about that commit.",
+      "expected": "Report incomplete coverage and name the missing checkpoint. Judge the tests required at the requested commit with the lane's build tags and selection rules. Reading the verdict should not run the checkpoints. A result for a removed test should cease to count.",
+      "actual": "lanesPassedAt iterates only keys already in the result map. One current models pass and zero counted failures suffice, even when a required test has no key. The runner's testSteps lists the generation checkpoint and schedules it on the same inputs. Conversely, a retained failure for a deleted test in a still-selected package keeps the verdict red. Both cases follow from source at 4661a328c. The existing check covers empty results and a recorded stale result, but never one missing required result beside a current pass."
+    },
+    {
       "id": "SQA-415",
       "severity": "P2",
       "files": [
@@ -32,8 +44,8 @@
         "internal/latentimage/moss_golden_test.go"
       ],
       "input": "After a passing needle-reference run, delete only fixtures/needle_upstream_calls.json and select lanes with -reached. The reader still names the old path. The same case applies to the models lane when only fixtures/moss/checkpoint.json is deleted.",
-      "expected": "A removed fixture reaches the test package that consumed it, or the lane runs when the reader is unknown. Apply this to the reach decision used by lanes-record/record before it credits a previous pass.",
-      "actual": "TrackedDocuments lists files still present. documentReaders therefore has no entry for either deleted fixture. In discover, an absent entry yields zero readers, so -reached can omit the test that would fail on the missing input. Existing checks cover edits while the fixtures exist. This follows from source."
+      "expected": "A removed fixture invalidates its reader's prior pass. Where the reader cannot be resolved, the selector must cover the affected lane.",
+      "actual": "TrackedDocuments lists files still present. documentReaders omits the deleted fixture and discover returns no readers. In the landed per-test selector, stillCurrent treats that empty reach as proof that the prior pass is current, so -reached skips the check that would fail on the missing file. The retained fixture check covers edits while both files exist. The deletion case follows from source."
     },
     {
       "id": "SQA-502",
@@ -290,7 +302,7 @@
       }
     }
   },
-  "next_finding_number": 517,
+  "next_finding_number": 518,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -1,9 +1,9 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would finish generation-rows/alone (SQA-513) against its existing Wan fixture, then take close-launcher/do (SQA-502). I would check publication identity (SQA-474) alongside restart credit before the next full measurement. The last close spent 9 h 14 min in lanes; a failed publication should preserve those results and credit the correct run.",
-    "Before the next MOSS training proof I would address SQA-507 under training-identity/do and check SQA-514 at the same picture admission point. The route already decodes the held-out image, but its size is rejected only after training inputs are prepared on the GPU. A changed picture can also pass the earlier split check and then be scored under the old identity.",
-    "The encoder now makes one model plan per load. Two runs reported a cold prompt encode of 3.45 s and 3.61 s, against the earlier 4.771 s. They did not isolate the planning cost or establish a new end-to-end gap. I would use the next ordinary workflow timing to assess that gap."
+    "I would take close-launcher/do (SQA-502) next and check publication identity (SQA-474) alongside it. A hand-started measurement should resume with its completed cells and publish its own result. The last close spent 9 h 14 min in lanes, which makes keeping verified work on retry the highest priority.",
+    "Before the next MOSS training proof I would keep media identity (SQA-507) and early rejection of wrong-sized held-out pictures (SQA-514) together. Master has filed both under training-identity/do. The check should cover the actual pixels consumed by the route.",
+    "For MOSS inference, SQA-515 removes 100.5 MiB of zero uploads per cold guided encode using a feed the executor already supports. I would take it when the encoder is next touched, behind the recovery and training fixes. The last matched first-request gap was 4.969 s before the encoder plan was shared. Subsequent cold prompt encodes took 3.45 s and 3.61 s. The next ordinary workflow timing can establish the current gap."
   ],
   "branch": "master",
   "findings": [
@@ -99,16 +99,17 @@
       "actual": "decodeMCPResponse returns result unchanged when the envelope has no error. With normal persistence, closeMutationReceipt writes StageCompleted for the failed mutation. A failed inspection also sets session.Inspection. RestoreSession reconstructs that credit from the recorded manual and arguments. The writer test checks the flag, while the HTTP client fixture returns only a success. These are source counterexamples."
     },
     {
-      "id": "SQA-513",
+      "id": "SQA-515",
       "severity": "P2",
       "files": [
-        "internal/scorecard/speed_table.go",
-        "internal/scorecard/media_preset_test.go",
-        "internal/scorecard/scorecard.go"
+        "internal/latentimage/model_encoder.go",
+        "internal/latentimage/model_encoder_windows.go",
+        "internal/model/cache_schema.go",
+        "internal/cuda/executor/executor.go"
       ],
-      "input": "Use the last case of TestAMediaCellRecordsThePresetItRan. Its Wan row still holds a 374 s full-size reading with an 832 x 480, 81-frame preset. Only the small request's preset has been cleared. The same combination is possible when only a successful full-size attempt has recorded its preset.",
-      "expected": "GenerationTable should show the 374 s reading with its preset and a dash for the small request. Omit the row if neither request has a usable measurement. The existing fixture already holds both cases' inputs.",
-      "actual": "GenerationTable skips the entire row on !first.Preset.Ran() before it looks for the full-size cell. The fixture explicitly expects an empty table despite keeping the measured full-size cell. Source-demonstrated at 1e2648a4c. The published Wan row has both presets and is visible."
+      "input": "Run the first guided MOSS Ultra text-to-image request with both prompts uncached. Its Qwen3.5-9B encoder has 24 recurrent layers. Each starts the two prompts with separate zero convolution and recurrent states.",
+      "expected": "Use the executor's existing reference.ZeroValue for both initial states. Preserve the bit-exact hidden states and the one-block device-memory bound already checked by TestATextEncoderHoldsOneBlockOnTheCard. The zero inputs should require no host payload or host-to-device transfer.",
+      "actual": "Source at ab55e884d: compileModelEncoderFrom allocates both states as float32 slices. encodeEach passes them to Retain, and the executor copies materialized inputs into host staging and uploads them. Per layer and prompt the states contain 3 x 8192 and 128 x 128 x 32 floats. Across 24 layers and two prompts that is 100.5 MiB of zeros uploaded per cold guided encode. The same executor initializes shape-only zero inputs on the device. The byte count follows from the model and code. The timing record does not isolate these transfers."
     },
     {
       "id": "SQA-492",
@@ -241,22 +242,22 @@
     }
   ],
   "master_lead_triage": {
-    "at": "2026-11-25",
-    "head": "ab55e884daa4d97d51199b49b8d775e48de143e7",
+    "at": "2026-11-27",
+    "head": "be6e5733889718881b5f81588f9b5c55146aee9c",
     "findings": {
+      "SQA-515": {
+        "action": "filed",
+        "rows": [
+          "moss-encoder-zeros/do"
+        ],
+        "note": "Answered by the lead on 2026-11-27 at be6e57338: valid from source (compileModelEncoderFrom feeds each recurrent layer's starting states as float32 zeros, which Retain stages and uploads, 100.5 MiB a cold guided encode, where reference.ZeroValue is initialised on the card); the transfers' share of the cold encode is not isolated. Within the campaign's first-request gap: filed as moss-encoder-zeros/do after close-launcher, whose change waits tested in the tree."
+      },
       "SQA-514": {
         "action": "filed",
         "rows": [
           "training-identity/do"
         ],
         "note": "Answered by the lead on 2026-11-27 at ab55e884d: valid from source (refuseTrainedHeldOut decodes a held-out picture and admits one whose shape is not the run's size, so the route prepares every training input on the card before the held-out encoder refuses it); a late refusal, no wrong result. Taken into training-identity/do, which rewrites the same admission point: the held-out picture's decoded shape is checked against the run's size there, with interleavedRows' check, before any device encoder opens."
-      },
-      "SQA-513": {
-        "action": "filed",
-        "rows": [
-          "generation-rows/alone"
-        ],
-        "note": "Answered by the lead on 2026-11-25 at 96841066: valid from source (GenerationTable leaves a row out on the timing request's missing preset before it reads the person-size cell, and the fixture expects that); not observed, the published rows holding both presets. Filed as generation-rows/alone after the MOSS rows."
       },
       "SQA-508": {
         "action": "filed",
@@ -351,7 +352,7 @@
       }
     }
   },
-  "next_finding_number": 515,
+  "next_finding_number": 516,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

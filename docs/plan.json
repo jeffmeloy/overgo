@@ -3,19 +3,19 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "close-launcher",
-      "title": "A closing measurement started by hand runs through the cycle's phases, so a restart keeps the cells it finished",
+      "id": "moss-encoder-zeros",
+      "title": "MOSS's text encoder starts its recurrent layers from zero states the card makes, uploading no zeros",
       "steps": [
         {
           "id": "do",
-          "title": "cmd/loop runs a full measurement by hand through measurePhases, with the cycle's credit and execution identity",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestAHandStartedRunWaitsForTheTrigger$'",
+          "title": "Each recurrent layer's starting convolution and state are shape-only zero values, which the executor initialises on the card",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestARecurrentLayerStartsFromZerosWithNoPayload$'",
           "files": [
-            "cmd/loop"
+            "internal/latentimage"
           ],
-          "rationale": "SQA-502 (P2), checked against cmd/loop/improve.go and the launcher of 2026-11-25 at c21345fd7: valid from source. The full measurement is started outside the session, where a tool call ends at two hours, by a .cmd that runs validate's four phases directly. It gives them neither the cycle's credit path nor the execution identity the loop links (validateTo, cycleCreditEnvironment), so cycleCellCredit keeps no cell and a cell's run takes a fresh identity. A run cut short and started again would measure the cells it had finished again: hours of the card. measurePhases and validateTo, which the unattended cycle runs, already keep both. The change: cmd/loop gains an entry that runs the cycle's phases at the trunk's commit by hand (measureScorecard in the cycle checkout, the run recorded), which a launcher outside the session calls in place of validate's phases. Check: TestAMeasurementByHandKeepsItsCreditAcrossARestart runs the entry with a stand-in validate that finishes one cell and is cut short, runs it again, and finds the finished cell credited and not measured again. It does not exist at the base, so the check fails there.\n\nNote: The cause, checked against cmd/loop at 7e417691c: an entry exists, loop -improve, which runs the cycle's phases through measureScorecard in the cycle checkout with the credit, the execution identity and the run record. It refused the closing run because HandStartDue starts no cycle while a step is dispatched, and the closing step (moss-close/run) was dispatched, so the run was started by a launcher of validate's phases instead. The cure fixes what exists, adding no entry: HandStartDue is due, once what a cycle measures moved, when the dispatched step's check reads the whole scorecard (a command go run ./cmd/validate -scorecard naming no -gap and no -declare), which only a run of every model can pass; a fix and a decline stay refused. The launcher outside the session then runs go run ./cmd/loop -improve. Check: TestAHandStartedRunWaitsForTheTrigger, extended with a closing step refused while nothing moved and due once something did; at the base it is refused, so the check fails on that assertion.\n\nNote: A second cost of the launcher, found at the owner's review of 2026-11-25: validate's phases run directly take no lane turn for the run, which loop -improve holds for its phases (landing.HoldLaneTurn), so the cycle's lanes runner started by a landing ran beside the measurement. From 05:12 to 05:33 on 2026-11-25 the runner at 7e417691c ran the models lane test by test between the closing run's, slowing it and holding memory as the closing run neared TestFlashNextLongContextAcceptance, which failed on 2026-11-24 with the machine at its commit limit; the lead stopped it by hand. Through -improve the runner waits on the run's turn in code.",
+          "rationale": "SQA-515 (P2), checked by the lead against internal/latentimage/model_encoder.go at be6e57338: valid from source. compileModelEncoderFrom feeds each recurrent layer's starting convolution and state as reference values of float32 zeros, which Retain stages on the host and uploads: 3 x 8192 and 128 x 128 x 32 floats a layer and prompt, 100.5 MiB of zeros across the Qwen3.5-9B encoder's 24 recurrent layers for a guided request's two prompts, where the executor initialises a shape-only zero input on the card (reference.ZeroValue). Within the campaign's first-request gap to ComfyUI; the transfers' share of the cold encode is not isolated.\n\nThe change: the zero feeds are reference.ZeroValue of their shapes, the hidden states bit for bit as before and the one-block bound TestATextEncoderHoldsOneBlockOnTheCard holds kept. Then the cold encode is timed as moss-encoder-plan timed it.\n\nCheck: TestARecurrentLayerStartsFromZerosWithNoPayload, a recurrent block of the small encoder fixture built by compileModelEncoderFrom: its zero feeds carry no host payload; it uses names the base holds, so it builds there and fails on its assertion.",
           "depends_on": [
-            "moss-close/run"
+            "close-launcher/do"
           ]
         }
       ]

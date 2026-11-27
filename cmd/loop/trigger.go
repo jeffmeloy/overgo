@@ -13,6 +13,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosource"
 	"overgo/internal/plan"
+	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
 )
 
@@ -86,11 +87,11 @@ func unmovedSince(last string) string {
 
 // HandStartDue says whether a cycle started by hand (-improve) is due, by the trigger's terms with the dispatched step
 // beside them: a cycle a run left unfinished continues at its own commit, and otherwise one is due only when no cycle
-// has completed, or what a cycle measures moved since the last that did and the plan is empty. While a step is
-// dispatched none is: a fix is judged by its own check, and a decline by
-// its own model's cells, never by a cycle of every model started for it (owner, 2026-10-31: stop retesting the whole
-// scorecard without finishing). The second run of 2026-10-31 was started by hand after a fix to three records whose
-// checks had passed on the card, and spent 9 hours 5 minutes.
+// has completed, or what a cycle measures moved since the last that did and the plan is empty or its dispatched step
+// is judged by the whole scorecard (judgedByEveryModel). While any other step is dispatched none is: a fix is judged by
+// its own check, and a decline by its own model's cells, never by a cycle of every model started for it (owner,
+// 2026-10-31: stop retesting the whole scorecard without finishing). The second run of 2026-10-31 was started by hand
+// after a fix to three records whose checks had passed on the card, and spent 9 hours 5 minutes.
 func (w *improvement) HandStartDue(dispatch plan.Dispatch) (bool, string, error) {
 	if begun := w.unfinished(); begun != "" {
 		return true, "the cycle a run began at " + begun[:min(len(begun), commitAbbreviation)] + " continues", nil
@@ -106,8 +107,33 @@ func (w *improvement) HandStartDue(dispatch plan.Dispatch) (bool, string, error)
 		return false, unmovedSince(last), nil
 	case dispatch.Complete:
 		return true, "the plan is empty and what a cycle measures moved", nil
+	case judgedByEveryModel(dispatch.Verify):
+		return true, "the plan holds " + dispatch.Item + "/" + dispatch.Step + ", whose check reads the scorecard of every model, and what a cycle measures moved", nil
 	}
 	return false, "the plan holds " + dispatch.Item + "/" + dispatch.Step + ", judged by its own check or its own model's cells, not by a run of every model", nil
+}
+
+// judgedByEveryModel says a step's check reads the whole scorecard a cycle publishes: one of its commands runs
+// cmd/validate -scorecard naming no one gap (-gap, a decline's check, judged by its model's cells) and declaring no
+// trade (-declare). A campaign's closing measurement is such a step (moss-close/run), and the run that passes it was
+// started outside the session by a launcher of validate's phases, with neither the cycle's credit nor its execution
+// identity, so a restart would measure again every cell it had finished (SQA-502).
+func judgedByEveryModel(verify string) bool {
+	parsed, err := runrecord.ParseVerify(verify)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(parsed.Segments, func(segment runrecord.VerifySegment) bool {
+		if len(segment.Fields) < 3 || !slices.Equal(segment.Fields[:3], []string{"go", "run", "./cmd/validate"}) {
+			return false
+		}
+		flags := map[string]bool{}
+		for _, field := range segment.Fields[3:] {
+			name, _, _ := strings.Cut(strings.TrimLeft(field, "-"), "=")
+			flags[name] = strings.HasPrefix(field, "-")
+		}
+		return flags["scorecard"] && !flags["gap"] && !flags["declare"]
+	})
 }
 
 // landingsThatMovedTheSurface counts the commits after the newest published scorecard's that touch

@@ -158,8 +158,9 @@ func TestCycleSurfaceNamesTheFilesItsCommandsEmbed(t *testing.T) {
 
 // TestAHandStartedRunWaitsForTheTrigger holds -improve, started by hand, to the trigger's terms with the dispatched step
 // beside them: a cycle is due when none has completed, never while nothing it measures moved, and once something moved
-// only when the plan is empty; a dispatched step starts none, a fix its own check
-// judges nor a decline its own model's cells judge, and a cycle a run left unfinished continues whatever the plan holds.
+// only when the plan is empty or its step is a closing measurement the whole scorecard judges; no other dispatched step
+// starts one, a fix its own check judges nor a decline its own model's cells judge, and a cycle a run left unfinished
+// continues whatever the plan holds.
 func TestAHandStartedRunWaitsForTheTrigger(t *testing.T) {
 	t.Parallel()
 	repository, records := t.TempDir(), filepath.Join(t.TempDir(), "scorecards")
@@ -176,6 +177,7 @@ func TestAHandStartedRunWaitsForTheTrigger(t *testing.T) {
 	world := &improvement{watch: true, root: repository, records: records, surface: surface}
 	fix := plan.Dispatch{Item: "run-lanes", Step: "do", Verify: "go test ./internal/evaluation -run '^TestTheFix$'"}
 	gap := plan.Dispatch{Item: "scorecard-regressed-x", Step: proposalStep, Verify: "go run ./cmd/validate -scorecard -gap scorecard-regressed-x -target 1"}
+	closing := plan.Dispatch{Item: "campaign-close", Step: "run", Verify: "go run ./cmd/validate -scorecard | grep -c '| image-gen |' && go run ./cmd/validate -readme"}
 	check := func(name string, dispatch plan.Dispatch, want bool) {
 		t.Helper()
 		due, reason, err := world.HandStartDue(dispatch)
@@ -191,10 +193,12 @@ func TestAHandStartedRunWaitsForTheTrigger(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("nothing moved since the cycle, a gap dispatched", gap, false)
+	check("nothing moved since the cycle, a closing measurement dispatched", closing, false)
 
 	land("internal/evaluation/a.go", "a fix to what the cycle measures")
 	check("a fix its own check judges", fix, false)
 	check("a decline its own model's cells judge", gap, false)
+	check("a closing measurement the whole scorecard judges", closing, true)
 	check("an empty plan", plan.Dispatch{Complete: true}, true)
 
 	testutil.WriteTextFile(t, repository, filepath.Join(processlock.StateDirectory, cycleCreditFile), `{"Commit":"`+git("rev-parse", "HEAD")+`"}`)

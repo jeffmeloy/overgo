@@ -217,11 +217,11 @@
         "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (MediaManifestBytes trims a line mossManifest keeps, and both routes read their files again after hashing them). training-identity/do bound the identity to the media; media-identity-read/do binds it to the bytes the route reads, parsed as the route parses. Implemented 2026-11-27 by media-identity-read/do, the landing that carries this answer: MediaManifestBytes is gone; trainingworkflow.PictureManifest reads the MOSS manifest as the route parses it, the path kept as written, each picture once, and the route trains, judges and refuses held-out copies on those bytes, which the identity (MediaIdentity) and cmd/validate's grounding hash; the codec route reads its manifest and clips once (readClipCorpus) and refuses a clip whose bytes changed since admission before decoding it, ffmpeg decoding from the path (TestARouteIsIdentifiedByTheBytesItReads), for the review's recheck."
       },
       "SQA-502": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "measure-retry/do"
         ],
-        "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (measurePhases runs the preflight and the lanes before reading the state that credits the cells and the publication, so a publication-only retry runs the lanes' 9 h again). close-launcher/do brought the closing run into the cycle (6862d5287); measure-retry/do credits a key's passed lanes on a retry."
+        "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (measurePhases runs the preflight and the lanes before reading the state that credits the cells and the publication, so a publication-only retry runs the lanes' 9 h again). close-launcher/do brought the closing run into the cycle (6862d5287); measure-retry/do credits a key's passed lanes on a retry. Implemented 2026-11-27 by measure-retry/do, the landing that carries this answer: the cycle's state keeps the lanes' pass for its key beside the cells' and the publication's, and a retry at that key credits the lanes, saying so; the preflight runs every time and lanes that failed run again (TestARetryRunsNoLanesItPassed), for the review's recheck."
       },
       "SQA-494": {
         "action": "implemented",

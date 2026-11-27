@@ -425,10 +425,11 @@ func (w improvement) moveCycle(checkout, commit string) error {
 // the scorecard go to, and the obligations the dry-run plan names, so a
 // different store or an obligation that changed since (a model activated, a
 // recipe replaced, a file a cell's command is given changed) starts over. Only a phase that passed is recorded, so a
-// failure runs again; the lanes are not recorded, since go test's cache
-// replays the packages whose inputs held and runs the rest.
+// failure runs again. The lanes are recorded too: unrecorded, a retry whose cells had passed and whose publication had
+// not ran them all again, 9 h 14 min in the close of 2026-11-25 (SQA-502).
 type cycleState struct {
 	Key       string `json:"key"`
+	Lanes     bool   `json:"lanes"`
 	Cells     bool   `json:"cells"`
 	Published bool   `json:"published"`
 }
@@ -488,8 +489,7 @@ func obligationsDigest(plan []byte) (string, error) {
 }
 
 // measureScorecard runs, from checkout, the checks the cells depend on (their
-// preflight and the cycle lanes, which go test's cache replays for the
-// packages no change reached), then measures again the validations the
+// preflight, and the cycle lanes once a key), then measures again the validations the
 // scorecard compares and publishes the scorecard of store with what moved
 // since the previous one. A failed lane ends the cycle before its first
 // cell. A failed validation does not discard the others' numbers: the
@@ -520,9 +520,10 @@ func measureScorecard(checkout, store string, published func() error, run *runRe
 }
 
 // measurePhases runs the cycle's phases for key, the preflight, the lanes,
-// the cells and the publication, in that order, skipping the cells and the
+// the cells and the publication, in that order, skipping the lanes, the cells and the
 // publication the state at statePath records as passed for that key. The
-// preflight and the lanes are the checks the cells depend on and always run.
+// preflight and the lanes are the checks the cells depend on: the preflight always runs, since it measures nothing,
+// and the lanes once a key, so a retry runs no lane it has passed (SQA-502).
 // A lane that fails ends the cycle there, since numbers measured on a build
 // its tests refuse are spent before they are read. A cell the preflight
 // refuses is named before any cell is measured, and the cycle goes on: one
@@ -559,24 +560,31 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 			failed = append(failed, err)
 		}
 	}
+	credit := func(name string) {
+		run.credited(name)
+		fmt.Fprintf(report, "loop: cycle phase %s credited from the interrupted run of this key: not run again\n", name)
+	}
 	phase("preflight", "-run", "-preflight")
-	if !phase("lanes", "-run", "-lanes") {
-		return errors.Join(failed...)
+	if state.Lanes {
+		credit("lanes")
+	} else {
+		if state.Lanes = phase("lanes", "-run", "-lanes"); !state.Lanes {
+			return errors.Join(failed...)
+		}
+		remember()
 	}
 	remeasured := !state.Cells
 	if remeasured {
 		state.Cells = phase("cells", "-run", "-cells", "-reached")
 		remember()
 	} else {
-		run.credited("cells")
-		fmt.Fprintln(report, "loop: cycle phase cells credited from the interrupted run of this key: not run again")
+		credit("cells")
 	}
 	if remeasured || !state.Published {
 		state.Published = phase("publication", "-scorecard", "-publish")
 		remember()
 	} else {
-		run.credited("publication")
-		fmt.Fprintln(report, "loop: cycle phase publication credited from the interrupted run of this key: not run again")
+		credit("publication")
 	}
 	if published != nil && state.Published {
 		if err := published(); err != nil {

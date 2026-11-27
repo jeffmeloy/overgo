@@ -3,21 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "measure-retry",
-      "title": "A measurement retried at the same key runs no lanes it has passed, so a publication-only retry takes minutes, not the lanes' hours",
-      "steps": [
-        {
-          "id": "do",
-          "title": "measurePhases keeps the lanes' pass in the cycle's state for its key and credits it on a retry, as it credits the cells and the publication",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestARetryRunsNoLanesItPassed$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "SQA-502 (P2), reopened by the review at 07a7a7185 and checked by the lead against cmd/loop/improve.go at ef97df584: valid from source. measurePhases reads the state's Cells and Published but runs the preflight and the lanes before consulting either, so a retry whose cells and publication are credited still runs the lanes, 9 h 14 min in the close of 2026-11-25. The change: the state keeps the lanes' pass for its key (the commit, the store and the obligations), and a retry at that key credits the lanes as it credits the cells, the preflight running as before since it measures nothing. The rule that the checks the cells depend on always run is narrowed to: they run once a key.\n\nCheck: TestARetryRunsNoLanesItPassed, a stand-in validate whose lanes passed and whose publication failed, run again: the lanes are not run again, the publication is."
-        }
-      ]
-    },
-    {
       "id": "gate-once",
       "title": "A commit's gate runs each package suite once, the step's check before the whole tree's tests",
       "steps": [

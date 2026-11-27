@@ -58,6 +58,7 @@ func TestAMediaCellRecordsThePresetItRan(t *testing.T) {
 		t.Fatalf("the README's generation table reads\n%s\nwant it to end with\n%s", table, want)
 	}
 	row.Cells[metric.FirstOutput] = Cell{Value: 13_000}
+	row.Warm = nil
 	if table := (Record{Rows: []Row{row}}).GenerationTable(); table != "" {
 		t.Fatalf("a record whose times name no preset gives the table\n%s", table)
 	}

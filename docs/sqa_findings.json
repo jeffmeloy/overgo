@@ -1,38 +1,12 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would take moss-heldout/do (SQA-506) first. The current fixture accepts a training picture as held out when its file encoding changes. Next I would measure SQA-511 under moss-encoder-plan/do. The 64 identical plans are countable, but their share of the 4.969 s first-request gap is unknown. A comparable cold timing should decide how much more time to spend there.",
-    "Before the next full measurement I would address restart credit (SQA-502) and publication identity (SQA-474) together in the existing cycle. The last closing run spent 9 h 14 min in lanes. A publication-only retry should keep that work, and the cycle should claim only its own scorecard. I would keep the two README timing findings together for the next table change. Both can be checked from a published record or an existing fixture."
+    "I would finish generation-rows/alone (SQA-513) against its existing Wan fixture, then take close-launcher/do (SQA-502). I would check publication identity (SQA-474) alongside restart credit before the next full measurement. The last close spent 9 h 14 min in lanes; a failed publication should preserve those results and credit the correct run.",
+    "Before the next MOSS training proof I would address SQA-507 under training-identity/do and check SQA-514 at the same picture admission point. The route already decodes the held-out image, but its size is rejected only after training inputs are prepared on the GPU. A changed picture can also pass the earlier split check and then be scored under the old identity.",
+    "The encoder now makes one model plan per load. Two runs reported a cold prompt encode of 3.45 s and 3.61 s, against the earlier 4.771 s. They did not isolate the planning cost or establish a new end-to-end gap. I would use the next ordinary workflow timing to assess that gap."
   ],
   "branch": "master",
   "findings": [
-    {
-      "id": "SQA-506",
-      "severity": "P2",
-      "files": [
-        "cmd/train/route_moss_windows.go",
-        "cmd/train/route_moss_windows_test.go",
-        "cmd/train/route_moss_heldout_windows_test.go",
-        "internal/trainingdata/image.go"
-      ],
-      "input": "Use TestMOSSRoute’s trained picture and caption as the held-out example. The fixture writes the same PNG under a new name with one zero byte appended after its end.",
-      "expected": "Reject a held-out picture whose decoded dimensions and RGB values equal a training picture, before preparing either on the GPU. Use the existing image processor for that comparison. Use a genuinely different picture for the successful route case and keep the padded copy as a rejection case.",
-      "actual": "refuseTrainedHeldOut hashes encoded file bytes. The extra byte changes that hash while ImageProcessor returns identical model input. TestMOSSRoute accepts a heldout.json reading for this example when the base and trained losses differ. The retained lanes log records the named invocation passing in 4.725s. This evidence concerns the compact fixture. The published 32-picture measurement used pictures from other videos."
-    },
-    {
-      "id": "SQA-511",
-      "severity": "P2",
-      "files": [
-        "internal/latentimage/model_encoder_windows.go",
-        "internal/latentimage/model_encoder.go",
-        "internal/model/layer_plan.go",
-        "internal/latentimage/generator_rotary_windows.go",
-        "docs/verification/moss-workflow-time.jsonl"
-      ],
-      "input": "Start a fresh MOSS Ultra session with its 32-block text encoder. Ask for the recorded guided text-to-image section with distinct positive and negative conditioning, both missing from the prompt cache.",
-      "expected": "Build the model-wide layer and cache plan once for the loaded encoder. Use it to construct each prompt's token-length-specific block graph. Preserve one-block device residency and the existing ComfyUI hidden-state comparison.",
-      "actual": "On committed master, encodeEach calls encodeBlock for each of 32 blocks and both prompts. Each call to compileModelEncoder runs CompileModelPlanWithProfile over all 32 layers and their cache schemas, using only the same catalog and profile. That gives 64 identical model plans (2,048 base layer plans) for this request; one suffices. This count follows from source. The cb82910a6 run measured 4.771 s for the entire cold prompt encode and 0 ms rounded on a cache hit. The record does not isolate planning time."
-    },
     {
       "id": "SQA-502",
       "severity": "P2",
@@ -82,9 +56,21 @@
         "internal/trainingworkflow/data.go",
         "cmd/validate/training_proof.go"
       ],
-      "input": "Use the same model and identical copies of the committed pictures.tsv in two directories. In the second directory give red.png the contents of green.png. The captions, filenames and image dimensions stay the same. The codec -frames route has the equivalent case when a listed clip’s first frame changes.",
-      "expected": "Bind the training dataset, split and processor to the ordered examples and preprocessing the route actually consumes. Have the session, checkpoint and validation proof use that identity. Reuse the existing training workflow and artifact identities so the same inputs retain their identity across directories.",
-      "actual": "Both routes pass only the manifest path to openSessionAs. BootstrapRecipe calls TextAuthority on its bytes, so both corpora get the same dataset, split, processor and recipe. MOSS then decodes different RGB values and the codec route reads the listed clips separately. publishPlanned records the objective’s dataset and split, and groundTraining identifies the MOSS route by the TSV alone. This collision follows from committed source. No run with substituted media was observed."
+      "input": "Keep the training manifest identical but change the pixels of a listed MOSS picture or the first frame of a listed codec clip. Within a MOSS run, start with distinct training and held-out pictures A and B, then replace B with a copy of A after the split check and before held-out preparation.",
+      "expected": "Bind the dataset, split, processor, checkpoint and validation proof to the ordered examples and preprocessing actually used. Preserve identities across directories for identical inputs. Prepare the admitted inputs or verify their identity when consumed, so the held-out score is earned on the admitted split.",
+      "actual": "Both routes pass only the manifest to openSessionAs. BootstrapRecipe uses TextAuthority on its bytes and groundTraining accepts the TSV, so changed media keep the same recorded identities. MOSS now compares decoded pixels at admission, but mossPrepare reopens the paths and never compares the new values with the admitted ones. In the A/B case judge uses A as held out after training on A. These counterexamples follow from source. No substituted-media run was observed."
+    },
+    {
+      "id": "SQA-514",
+      "severity": "P2",
+      "files": [
+        "cmd/train/route_moss_windows.go",
+        "cmd/train/route_moss_heldout_windows_test.go",
+        "internal/latentimage/vae_encoder_windows.go"
+      ],
+      "input": "Use the compact MOSS training route with its valid model, three 32 x 32 training pictures and -size 32. Give -heldout one distinct, decodable 16 x 16 PNG and supply -report.",
+      "expected": "Reject the held-out picture with its path and the required 32 x 32 dimensions while the route already has the decoded shape, before creating a device encoder or preparing any training caption. Use the same size check as interleavedRows.",
+      "actual": "refuseTrainedHeldOut sees [3,16,16] and accepts it because its digest differs from the training pictures. trainMOSS completes mossPrepare for all three training pictures and captions, then opens and binds the held-out picture encoder. Only then does interleavedRows reject the dimensions. Source-demonstrated at ab55e884d; the discarded preparation was not timed."
     },
     {
       "id": "SQA-494",
@@ -111,19 +97,6 @@
       "input": "An admitted MCP tool call receives HTTP 200 and a JSON-RPC response with the matching ID. The tools/call result carries isError=true and text explaining the tool failure. This is the result shape serveTools emits when a worker tool returns an error.",
       "expected": "At tools/call, preserve a failed tool's diagnostic and record an admitted mutation as failed. A failed inspection must earn no inspection credit, including after restart. Feed the worker writer's replies to the client with the client's request ID. Check true, false and the existing success fixture with the flag omitted.",
       "actual": "decodeMCPResponse returns result unchanged when the envelope has no error. With normal persistence, closeMutationReceipt writes StageCompleted for the failed mutation. A failed inspection also sets session.Inspection. RestoreSession reconstructs that credit from the recorded manual and arguments. The writer test checks the flag, while the HTTP client fixture returns only a success. These are source counterexamples."
-    },
-    {
-      "id": "SQA-512",
-      "severity": "P2",
-      "files": [
-        "internal/scorecard/scorecard.go",
-        "internal/scorecard/speed_table.go",
-        "internal/scorecard/media_preset_test.go",
-        "cmd/validate/readme.go"
-      ],
-      "input": "Render the SenseNova image row of scorecard-20261125T170629Z.json. The full-size median is 130.669889 s. The newest attempt's recorded stages total 132.256317 s.",
-      "expected": "Keep the full-size median. Attribute the stage breakdown to the run it describes. The existing record can label the newest attempt and show its own total, including when the median falls between two runs.",
-      "actual": "The committed README shows 130.7 s beside model session leased 10.9 s and model.routed-image-integrate 120.0 s. Even these two stages alone exceed the displayed total. servingSummary.timed takes the median, readUserSize keeps the newest attempt's stages, and GenerationTable presents them as where the displayed time went. Observed in the published scorecard and its generated README; the same record has a 336.768 s Wan median and 337.243 s of stages."
     },
     {
       "id": "SQA-513",
@@ -269,28 +242,21 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-25",
-    "head": "96841066485c46da331d3dafe08deea6e26d77f5",
+    "head": "ab55e884daa4d97d51199b49b8d775e48de143e7",
     "findings": {
+      "SQA-514": {
+        "action": "filed",
+        "rows": [
+          "training-identity/do"
+        ],
+        "note": "Answered by the lead on 2026-11-27 at ab55e884d: valid from source (refuseTrainedHeldOut decodes a held-out picture and admits one whose shape is not the run's size, so the route prepares every training input on the card before the held-out encoder refuses it); a late refusal, no wrong result. Taken into training-identity/do, which rewrites the same admission point: the held-out picture's decoded shape is checked against the run's size there, with interleavedRows' check, before any device encoder opens."
+      },
       "SQA-513": {
         "action": "filed",
         "rows": [
           "generation-rows/alone"
         ],
         "note": "Answered by the lead on 2026-11-25 at 96841066: valid from source (GenerationTable leaves a row out on the timing request's missing preset before it reads the person-size cell, and the fixture expects that); not observed, the published rows holding both presets. Filed as generation-rows/alone after the MOSS rows."
-      },
-      "SQA-512": {
-        "action": "filed",
-        "rows": [
-          "generation-rows/stages"
-        ],
-        "note": "Answered by the lead on 2026-11-25 at 96841066: valid, observed in the README written from scorecard-20261125T170629Z (SenseNova's 130.7 s median beside its newest attempt's stages, 10.9 s and 120.0 s, of an attempt of 132.3 s). Filed as generation-rows/stages after the MOSS rows."
-      },
-      "SQA-511": {
-        "action": "filed",
-        "rows": [
-          "moss-encoder-plan/do"
-        ],
-        "note": "Answered by the lead on 2026-11-25 at c34da2721: valid from source (encodeEach compiles each block's graph through compileModelEncoder, which plans all 32 layers each time, so two uncached prompts plan the model 64 times); the planning's share of the 4.771 s cold encode is not isolated, so the step times it first. Within the campaign's aim, the first request's gap to ComfyUI: filed as moss-encoder-plan/do after moss-heldout."
       },
       "SQA-508": {
         "action": "filed",
@@ -305,13 +271,6 @@
           "training-identity/do"
         ],
         "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source, a proof that passes for a dataset it did not read (BootstrapRecipe takes the manifest's bytes alone, so two corpora with one pictures.tsv share one dataset, split, processor and recipe); not observed. Filed as training-identity/do among the tooling rows."
-      },
-      "SQA-506": {
-        "action": "filed",
-        "rows": [
-          "moss-heldout/do"
-        ],
-        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source, a check that passes without checking (refuseTrainedHeldOut hashes file bytes, so the fixture's padded copy of a trained picture passes as held out); the published 32-picture measurement used other pictures. Filed as moss-heldout/do after readme-timings, before the tooling rows."
       },
       "SQA-502": {
         "action": "filed",
@@ -392,7 +351,7 @@
       }
     }
   },
-  "next_finding_number": 514,
+  "next_finding_number": 515,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

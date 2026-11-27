@@ -74,28 +74,35 @@ func (record Record) SpeedTable() string {
 }
 
 // GenerationTable is the README's table of the record's generated pictures and clips, after its speed table: one line
-// for each image or video row whose time to the whole output names the preset it ran, its time at the size a person
-// asks for with that preset where one was read, first, since that is the time a person gets; then the time of the
-// scorecard's timing request with its preset, which for a video model is a small request that times its load and its
-// prompt more than a clip (Wan's 32 x 16 request took 7.1 s of which its clip 0.34 s, 2026-11-25); then where the
-// newest attempt at a person's size went (Row.Stages), with that attempt's own time, since the row's time is the median
-// of the newest attempts and its parts are one attempt's (SenseNova's 130.7 s median beside parts of 10.9 s and
-// 120.0 s, of an attempt of 132.3 s, SQA-512). A record measured before its attempts kept their presets gives no table.
+// for each image or video row with a time that names the preset it ran, a dash standing for a time that names none, a
+// row with neither left out (a row whose timing request named no preset had hidden its reading at a person's size,
+// SQA-513): its time at the size a person asks for with that preset, first, since that is the time a person gets; then
+// the time of the scorecard's timing request with its preset, which for a video model is a small request that times its
+// load and its prompt more than a clip (Wan's 32 x 16 request took 7.1 s of which its clip 0.34 s, 2026-11-25); then
+// where the newest attempt at a person's size went (Row.Stages), with that attempt's own time, since the row's time is
+// the median of the newest attempts and its parts are one attempt's (SenseNova's 130.7 s median beside parts of 10.9 s
+// and 120.0 s, of an attempt of 132.3 s, SQA-512). A record measured before its attempts kept their presets gives no
+// table.
 func (record Record) GenerationTable() string {
 	timed := func(cell Cell) string {
 		return fmt.Sprintf("%.1f s (%s)", time.Duration(cell.Value*float64(time.Millisecond)).Seconds(), cell.Preset)
 	}
 	var lines strings.Builder
 	for _, row := range record.Rows {
-		first := row.Cells[metric.FirstOutput]
-		if row.Task != recipe.TaskImageGen && row.Task != recipe.TaskVideoGen || row.Stale != "" || !first.Preset.Ran() {
+		if row.Task != recipe.TaskImageGen && row.Task != recipe.TaskVideoGen || row.Stale != "" {
 			continue
 		}
-		sized, went := unreadSpeed, unreadSpeed
+		small, sized, went := unreadSpeed, unreadSpeed, unreadSpeed
+		if first := row.Cells[metric.FirstOutput]; first.Preset.Ran() {
+			small = timed(first)
+		}
 		if at := slices.IndexFunc(row.Warm, func(cell Cell) bool { return cell.Contract.Metric == userSizeTimeMetric && cell.Preset.Ran() }); at >= 0 {
 			sized, went = timed(row.Warm[at]), stagesText(row.Stages)
 		}
-		fmt.Fprintf(&lines, "| %s | %s | %s | %s |\n", row.Name, sized, timed(first), went)
+		if small == unreadSpeed && sized == unreadSpeed {
+			continue
+		}
+		fmt.Fprintf(&lines, "| %s | %s | %s | %s |\n", row.Name, sized, small, went)
 	}
 	if lines.Len() == 0 {
 		return ""

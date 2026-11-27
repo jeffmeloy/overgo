@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "generation-rows",
-      "title": "The generation table says whose time its stages are and keeps a row whose person-size reading stands alone",
-      "steps": [
-        {
-          "id": "alone",
-          "title": "A row with a measured reading at a person's size is shown though its timing request recorded no preset",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAPersonSizeReadingStandsWithoutTheTimingRequestsPreset$'",
-          "files": [
-            "internal/scorecard"
-          ],
-          "rationale": "SQA-513 (P2), checked by the lead against internal/scorecard/speed_table.go at 96841066: valid from source, not observed (the published rows hold both presets). GenerationTable skips a row on !first.Preset.Ran() before it reads the person-size cell, so a row whose small request recorded no preset hides a measured 374 s reading with its preset, and TestAMediaCellRecordsThePresetItRan's last case expects the empty table.\n\nThe change: a row is shown when either reading names its preset, the dash standing for the one that names none; a row with neither is left out. The fixture's last case expects the person-size reading.\n\nCheck: TestAPersonSizeReadingStandsWithoutTheTimingRequestsPreset; it uses Record and GenerationTable, so it builds at the base and fails on its assertion.",
-          "depends_on": [
-            "generation-rows/stages"
-          ]
-        }
-      ]
-    },
-    {
       "id": "close-launcher",
       "title": "A closing measurement started by hand runs through the cycle's phases, so a restart keeps the cells it finished",
       "steps": [
@@ -113,7 +95,7 @@
             "internal/trainingworkflow",
             "cmd/validate"
           ],
-          "rationale": "SQA-507 (P2), checked by the lead against cmd/train and internal/trainingworkflow at 7e417691c: valid from source, a proof that passes for a dataset it did not read. Both routes pass only the manifest path to openSessionAs; BootstrapRecipe takes TextAuthority of its bytes, so two directories with the same pictures.tsv and different pictures get one dataset, split, processor and recipe, and the validation proof (groundTraining) identifies the MOSS route by the TSV alone. No run with substituted media was observed.\n\nThe change: the dataset, split and processor identities bind the ordered examples and the preprocessing the route consumes, through the existing training workflow and artifact identities, so the same inputs keep their identity across directories and different media get another; the session, checkpoint and validation proof use it. First read every reader of the identity BootstrapRecipe gives.\n\nCheck: TestTwoCorporaWithOneManifestTextAreTwoDatasets, two directories with one pictures.tsv and red.png's contents differing: two dataset identities; the same media in two directories: one. It calls the route's bootstrap, which the base holds, so it builds there and fails on its assertion.",
+          "rationale": "SQA-507 (P2), checked by the lead against cmd/train and internal/trainingworkflow at 7e417691c: valid from source, a proof that passes for a dataset it did not read. Both routes pass only the manifest path to openSessionAs; BootstrapRecipe takes TextAuthority of its bytes, so two directories with the same pictures.tsv and different pictures get one dataset, split, processor and recipe, and the validation proof (groundTraining) identifies the MOSS route by the TSV alone. No run with substituted media was observed.\n\nThe change: the dataset, split and processor identities bind the ordered examples and the preprocessing the route consumes, through the existing training workflow and artifact identities, so the same inputs keep their identity across directories and different media get another; the session, checkpoint and validation proof use it. First read every reader of the identity BootstrapRecipe gives.\n\nCheck: TestTwoCorporaWithOneManifestTextAreTwoDatasets, two directories with one pictures.tsv and red.png's contents differing: two dataset identities; the same media in two directories: one. It calls the route's bootstrap, which the base holds, so it builds there and fails on its assertion.\n\nNote: SQA-514 (P2), answered by the lead on 2026-11-27 at ab55e884d: valid from source. refuseTrainedHeldOut decodes each held-out picture (moss-heldout/do) and admits one whose decoded shape is not [3, size, size], a 16 x 16 picture beside -size 32, so trainMOSS prepares every training picture and caption on the card before the held-out encoder refuses it. At this admission point the change refuses a held-out picture whose decoded shape is not the run's size, naming its path and the size, with the check interleavedRows makes, before any device encoder opens; the route's test of a run refused before its first picture holds a 16 x 16 held-out picture too.",
           "depends_on": [
             "moss-close/run"
           ]

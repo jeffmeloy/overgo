@@ -33,3 +33,17 @@ func TestTheStagesAreTheNewestAttemptsWithItsOwnTotal(t *testing.T) {
 		t.Fatalf("the generation table reads\n%s\nwant the parts after their attempt's own time:\n%s", table, want)
 	}
 }
+
+// TestAPersonSizeReadingStandsWithoutTheTimingRequestsPreset holds the generation table to every reading that names
+// what it ran: a row whose timing request recorded no preset had been left out whole, its measured 374 s at 81 frames
+// of 832 x 480 hidden with it (SQA-513). Such a row shows its person-size reading with a dash for the timing request.
+func TestAPersonSizeReadingStandsWithoutTheTimingRequestsPreset(t *testing.T) {
+	t.Parallel()
+	sized := media.Preset{Width: 832, Height: 480, Frames: 81, Steps: 50, Sampler: "flow UniPC"}
+	row := Row{Name: "Wan", Task: recipe.TaskVideoGen, Cells: map[metric.Name]Cell{metric.FirstOutput: {Value: 13_000}},
+		Warm: []Cell{{Value: 374_000, Preset: sized, Contract: Contract{Metric: userSizeTimeMetric}}}}
+	want := "| Wan | 374.0 s (832 x 480, 81 frames, 50 steps, flow UniPC) | — | — |"
+	if table := (Record{Rows: []Row{row}}).GenerationTable(); !strings.Contains(table, want) {
+		t.Fatalf("the generation table reads\n%s\nwant the person-size reading beside a dash:\n%s", table, want)
+	}
+}

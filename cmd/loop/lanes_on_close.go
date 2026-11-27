@@ -180,12 +180,38 @@ func runLanesDue(root string, output io.Writer, run func(checkout string) error,
 	if err = errors.Join(err, lock.Close()); err != nil {
 		return err
 	}
-	// A close that named its commit while the lock was held left its run to the runner this one starts.
-	if due, began, err := lanesRecords(state); err != nil || due.Commit == began.Commit {
+	return laterDue(state, output, next)
+}
+
+// laterDue starts the runner (next) for a commit named due that no run began: a close that named its commit while the
+// lanes were held left its run to it. Nothing is due where no close named one.
+func laterDue(state string, output io.Writer, next func() error) error {
+	switch due, began, err := lanesRecords(state); {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil || due.Commit == began.Commit:
 		return err
 	}
 	fmt.Fprintln(output, "loop: a later commit is due; the runner built from the trunk runs it")
 	return next()
+}
+
+// holdingTheLanes runs work, a measurement's phases, holding the lanes lock a close's runner holds (runLanesDue), waited
+// for where a runner holds it, taken before the card's turn the phases take so no runner holding it waits for the card
+// beneath: one run at a time runs the lanes (lanes-record/one-runner). A close during work names its commit due and
+// starts no run (lanesOnClose), and once work lets the lanes go the runner starts for that commit (laterDue), taking only
+// what the later commits reach. The closing run of 2026-11-25 held no lock: it waited 130 times for the card a runner
+// held beside it, its own lane tests 1 h 48 min of 4 h 50 min.
+func holdingTheLanes(root string, output io.Writer, work, next func() error) error {
+	state := filepath.Join(root, processlock.StateDirectory)
+	if err := processlock.EnsureStateDirectory(root); err != nil {
+		return err
+	}
+	lock, err := processlock.AcquireContext(context.Background(), filepath.Join(state, lanesLock), clioptions.PrivateFileMode)
+	if err != nil {
+		return err
+	}
+	return errors.Join(work(), lock.Close(), laterDue(state, output, next))
 }
 
 // lanesRecords reads the commit due and the one a runner last began the lanes at, none where none began: a runner

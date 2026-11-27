@@ -3,31 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "lanes-record",
-      "title": "A slow test runs again only when what its package reads changed since its last result, and one runner at a time runs the lanes",
-      "class": "consolidation",
-      "budget": {
-        "nodes": 493,
-        "reason": "Set from the row's removal list at the owner's review of 2026-11-25, counted as the landing counts (ast nodes of production Go, tmp/lanes-record/nodes.go at 7e417691c): lanes_first.go 973 less its yield to a newer commit, which stays (runnerYield, yieldTo, yields, lanesYield: 200), reachedLanes 363, changedSinceLastPass 79, leastRecentlyRunFirst 75, laneNames 38, keepLaneRun 184, and plan's LaneRun, LaneRecord, laneRunsFile, ReadLaneRuns, RecordLaneRun, RecordLanePackages, LanesYieldedFile and LanesYielded 218: 1,730 removed. Less at most 630 added: the record's result and its write as each test ends (about 100 over test_passes.go's 124, which becomes the one record), the rule (about 450, the size of the reach and diff code it replaces) and the status and -lanes-passed-at read from the test record (about 80). The row must shrink production by at least 1,100 nodes."
-      },
-      "steps": [
-        {
-          "id": "one-runner",
-          "title": "A measurement's lanes phase holds the lanes lock the close's runner holds, so a close during it runs after it with only what later commits reach",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestACloseDuringAMeasurementRunsWhenItLetsGo$'",
-          "files": [
-            "cmd/validate",
-            "cmd/loop",
-            "internal/landing"
-          ],
-          "rationale": "The owner's review of 2026-11-25, point 1, checked by the lead: valid. Only the close's runner takes lanesLock (cmd/loop/lanes_on_close.go:92, :163). The closing run of 2026-11-25, started by validate's phases directly, waited 130 times from 00:18 to 05:20, 92 of them for the card held by another validate.exe for a cycle lane (85 for models), and its models lane's own steps summed 1h48m of the 4h50m from 00:30 to 05:20. loop -improve holds the card's turn for a measurement's phases (landing.HoldLaneTurn), which makes a runner's card tests wait, but the runner still starts, lists and builds beside it, and a run by any other route holds nothing.\n\nThe change: validate -run -lanes takes the lanes lock in the trunk's state however it was started, a measurement's phases and the close's runner alike; a close during a measurement names its commit due (lanes_due.json), and the lanes run that lets the lock go starts the runner for a commit due that it did not run, as runLanesDue does after its own run, which then runs only the tests later commits reach (lanes-record/record). Read lanes_on_close.go's lock and due files first; no second lock.\n\nCheck: TestACloseDuringAMeasurementRunsWhenItLetsGo, with stand-in runs: a close while a measurement's lanes hold the lock starts no run, and the measurement's end starts the runner for the commit due.",
-          "depends_on": [
-            "lanes-record/record"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-memory",
       "title": "Flash-Next's server takes the commit it needs before it pins, waiting while overgo's own processes hold the shortfall and otherwise failing at once with the needed, free and limit figures",
       "steps": [

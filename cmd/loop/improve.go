@@ -198,8 +198,11 @@ func improvementFor(store string) improvement {
 		watch: true, root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store), store: store, run: run,
 		// The measurement and the fill use the device, so each holds the host's lane turn: a landing beside the run
 		// runs its host stages, and its lanes wait for the turn in code (landing.HoldLaneTurn).
+		// The measurement holds the lanes as a close's runner does, outside the card's turn (holdingTheLanes).
 		measure: func(checkout string, published func() error) error {
-			return landing.HoldLaneTurn(measurementPhases, func() error { return measureScorecard(checkout, store, published, run) })
+			return holdingTheLanes(loopWorktree, os.Stdout, func() error {
+				return landing.HoldLaneTurn(measurementPhases, func() error { return measureScorecard(checkout, store, published, run) })
+			}, startLanesRunner)
 		},
 		fill: func(checkout string) error {
 			return landing.HoldLaneTurn(measurementPhases, func() error {

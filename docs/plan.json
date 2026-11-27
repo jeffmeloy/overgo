@@ -1,30 +1,7 @@
 {
   "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "liveedit-size",
-      "title": "LiveEdit's scorecard row carries a time at the size a person asks for: an edit of a clip at 832 x 480",
-      "steps": [
-        {
-          "id": "do",
-          "title": "An edit's request at a person's size is its page's own size with a source clip at that size, and LiveEdit's page states its developers' size",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestAnEditAtAPersonsSizeTakesASourceAtThatSize$'",
-          "files": [
-            "internal/mediacapability",
-            "internal/latentvideo",
-            "docs/verification",
-            "cmd/recipe"
-          ],
-          "needs_card": true,
-          "rationale": "The owner's review of 2026-11-25, point 3, checked by the lead against the closing run's log: valid. LiveEdit's video-user-size cell (22/105) measured nothing: \"the verification of ... LiveEdit states no size of its own, so there is no larger request to measure\" (mediacapability.PersonRequest found no default size on its page and a size its runtime does not fill), so its only time is the 32 x 16 request's, 12.0 s in that run. The model runs at 832 x 480, the size it was trained at: the README's sample, 33 frames of the Wan clip at that size, was drawn in 25 s on 2026-11-25.\n\nThe change: LiveEdit's page declares its developers' size and frames (read them from its model card and inference code), and an edit's request at a person's size takes its source clip at that size too, the stored Wan clip (file:sha256:aba27ea7...) or one the verification names, so the size timed is a size a person edits at. Then the cell is measured on the card (go run ./cmd/validate -run -model LiveEdit), and the scorecard row carries the time.\n\nCheck: TestAnEditAtAPersonsSizeTakesASourceAtThatSize, PersonRequest of LiveEdit's module: the request is lifted to the page's size with a source clip of that size; it calls PersonRequest, which the base holds, so it builds there and fails on its assertion.",
-          "depends_on": [
-            "moss-close/run"
-          ]
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "skill-source-form",

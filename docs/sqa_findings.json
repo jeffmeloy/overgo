@@ -1,9 +1,9 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "For faster commits, I would keep SQA-516 first. The two lanes-record landings spent about 25 minutes combined in invariants and general tests. Only part of that work overlaps. Judge a change by time to the first actionable failure and elapsed time to land.",
-    "The two lanes-record changes landed. Before using the whole-run verdict for MOSS, I would make it agree with the runner about missing checkpoints (SQA-517) and make a deleted fixture invalidate its reader's pass (SQA-415). Both belong with the existing test selection and result readers. Flash-Next's planned memory reservation addresses a measured pinning failure and can proceed independently.",
-    "Before the next full measurement I would settle publication-only retry (SQA-502) and which run owns a publication (SQA-474). Before the next training proof, training-identity/do owns media identity and held-out admission (SQA-507)."
+    "I would finish liveedit-size/do as planned. The retained 32 by 16 timing leaves the cost of an 832 by 480 edit unknown. For faster commits, SQA-516 is still my first recommendation. The four landings after lanes-record spent 52 minutes combined in invariants and general tests. Only part of that work overlaps.",
+    "Before accepting a whole-run MOSS verdict, I would make it agree with the runner about missing checkpoints (SQA-517) and make a deleted fixture invalidate its reader's pass (SQA-415). Before another full measurement, I would settle publication-only retry (SQA-502) and which run owns a publication (SQA-474).",
+    "Before trusting another MOSS training proof, I would finish SQA-507 in the route that reads the pictures. The new identity reader can hash a different file from the encoder even when the corpus stays still."
   ],
   "branch": "master",
   "findings": [
@@ -81,12 +81,12 @@
         "cmd/train/route_moss_heldout_windows_test.go",
         "cmd/train/route_codec.go",
         "cmd/train/shared_run.go",
-        "internal/trainingworkflow/bootstrap_recipe.go",
+        "internal/trainingworkflow/media_manifest.go",
         "cmd/validate/training_proof.go"
       ],
-      "input": "Use identical manifest text with different MOSS pixels or a different first codec frame. In a separate MOSS run, replace held-out B with training image A after split admission. For the size case (SQA-514), use three valid 32 x 32 training pictures, -size 32, -report and a distinct 16 x 16 held-out PNG.",
-      "expected": "Bind session, checkpoint and proof identities to the ordered media and preprocessing actually consumed. Identical inputs in different directories keep their identity. Check the held-out decoded shape and split before opening the GPU encoder, and consume those admitted pixels or verify them when read again.",
-      "actual": "Both routes supply only manifest bytes to TextAuthority, so changing media can leave dataset, split and processor identities unchanged. MOSS checks decoded pictures, then mossPrepare reopens the paths and can score A as held out after training on A. A distinct 16 x 16 picture passes the split check. Only after all three training pictures and captions have been prepared and the held-out encoder opened does interleavedRows reject it. All three cases follow from source."
+      "input": "In two MOSS corpora, put one leading space before red.png in the manifest's path field. Give both directories the same red.png and different valid pictures named ' red.png'. Use the same caption, weights and size. Separately, replace held-out picture B with same-size training picture A after split admission and before preparation.",
+      "expected": "Derive the recipe and proof identities from the ordered inputs the route admits and consumes. Preserve its path syntax and relocation behavior. Consume the admitted media or verify their identity on reread so a changed training clip or substituted held-out picture is caught.",
+      "actual": "MediaManifestBytes trims the line before extracting the path and hashes red.png. mossManifest preserves the leading space and mossPrepare encodes ' red.png'. The two static corpora therefore train on different pixels under the same dataset identity. MOSS also reopens held-out paths after checking the split, and the codec reopens clips after hashing, without comparing either reread to the admitted input. These are source counterexamples at 07a7a7185."
     },
     {
       "id": "SQA-494",
@@ -112,20 +112,6 @@
       "input": "A named lead holds the worktree and has asked to pause. Before its stop is recorded, the prompt hook receives a progress question without a session_id. The harness’s nameless-hook path is covered in sessions_test.go.",
       "expected": "Preserve the holder’s pending stop request. Only a prompt attributable to the holding session should change its authorization. A nameless hook may still take its existing shared turn snapshot.",
       "actual": "be631dfc3 fixes the named reviewer and visitor cases and the direct negation “don’t stop.” With no session_id, holdWorktree returns an empty string before reading the holder. beginTurn treats that value as permission to call NoteStopRequest, which removes the lead’s request on the progress prompt. RequireStopRequest then refuses the authorized pause. This residual case follows from source. No missed pause was observed."
-    },
-    {
-      "id": "SQA-508",
-      "severity": "P2",
-      "files": [
-        "internal/agenttool/transport.go",
-        "internal/agentloop/coordinator.go",
-        "cmd/loop/tools.go",
-        "internal/agenttool/transport_test.go",
-        "cmd/loop/tools_test.go"
-      ],
-      "input": "An admitted MCP tool call receives HTTP 200 and a JSON-RPC response with the matching ID. The tools/call result carries isError=true and text explaining the tool failure. This is the result shape serveTools emits when a worker tool returns an error.",
-      "expected": "At tools/call, preserve a failed tool's diagnostic and record an admitted mutation as failed. A failed inspection must earn no inspection credit, including after restart. Feed the worker writer's replies to the client with the client's request ID. Check true, false and the existing success fixture with the flag omitted.",
-      "actual": "decodeMCPResponse returns result unchanged when the envelope has no error. With normal persistence, closeMutationReceipt writes StageCompleted for the failed mutation. A failed inspection also sets session.Inspection. RestoreSession reconstructs that credit from the recorded manual and arguments. The writer test checks the flag, while the HTTP client fixture returns only a success. These are source counterexamples."
     },
     {
       "id": "SQA-283",
@@ -209,20 +195,6 @@
     "at": "2026-11-27",
     "head": "be6e5733889718881b5f81588f9b5c55146aee9c",
     "findings": {
-      "SQA-514": {
-        "action": "filed",
-        "rows": [
-          "training-identity/do"
-        ],
-        "note": "Answered by the lead on 2026-11-27 at ab55e884d: valid from source (refuseTrainedHeldOut decodes a held-out picture and admits one whose shape is not the run's size, so the route prepares every training input on the card before the held-out encoder refuses it); a late refusal, no wrong result. Taken into training-identity/do, which rewrites the same admission point: the held-out picture's decoded shape is checked against the run's size there, with interleavedRows' check, before any device encoder opens."
-      },
-      "SQA-508": {
-        "action": "filed",
-        "rows": [
-          "agent-tool-errors/do"
-        ],
-        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source, a check that passes without checking (decodeMCPResponse reads no isError, so a failed mutation is recorded completed and a failed inspection earns credit, rebuilt after a restart); not observed. Filed as agent-tool-errors/do among the tooling rows."
-      },
       "SQA-507": {
         "action": "filed",
         "rows": [

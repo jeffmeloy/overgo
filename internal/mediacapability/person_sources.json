@@ -1,0 +1,9 @@
+{
+  "model.reference-video-prepare": {
+    "source": "file:sha256:aba27ea7cdd3132034b1cdbbbf4c174dc80d02396af1afede152e4989f6e8bf2",
+    "width": 832,
+    "height": 480,
+    "frames": 33,
+    "why": "LiveEdit edits at 832 x 480, the size its developers' inference resizes to (configs/default_config.yaml, inference-mm.py); the clip is the first 33 frames of Wan's model-card sample at that size, the README's LiveEdit source, where the developers' default is 81"
+  }
+}

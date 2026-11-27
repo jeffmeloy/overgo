@@ -3,28 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "cuda-resources",
-      "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
-      "steps": [
-        {
-          "id": "measure",
-          "title": "SenseNova's request-resources test is measured again on a card to itself and carries modeltest, so the gate's cuda lane runs no real-model test",
-          "verify": "go test -tags wholetree ./internal/landing -count=1 -run '^TestTheGateRunsNoRealModelTest$'",
-          "files": [
-            "internal/sensenovarecipe",
-            "internal/landing",
-            "docs/image_video_capacity.json",
-            "cmd/validate"
-          ],
-          "needs_card": true,
-          "rationale": "The evidence: cuda-synthetic/tag moved every untagged CUDA test that reads the data root behind modeltest but one. TestSenseNovaVariableRequestResources runs SenseNova's 8B production generation in an isolated measurement process, and docs/image_video_capacity.json names its retained measurement by the bytes of its file (evidence:sha256:888854b5...), which the store holds; tagged, its bytes changed and TestImageVideoCapacityAcceptance found no evidence under the new identity. A measurement is taken again only on a card to itself, and the readings campaign holds the card until its Wan arms are drawn, so the file stays in the gate, named by the check as measuredInPlace, and this row follows the campaign.\n\nThe change: the test carries //go:build modeltest, it is measured again on a quiet card into the store, the capacity record and its protocol digest (imageVideoCapacitySHA256) name the new identity, and measuredInPlace goes, so internal/sensenovarecipe leaves the cuda lane.\n\nCheck: a whole-tree test with measuredInPlace gone, named afresh so it fails before the change: TestTheGateRunsNoRealModelTest.\n\nRefiled 2026-11-16 from cuda-resources/do, whose step carried no card need, so dispatch gave it while the readings campaign held the card: this step carries -needs-card and waits for a card to itself.",
-          "depends_on": [
-            "full-measurement/run"
-          ]
-        }
-      ]
-    },
-    {
       "id": "liveedit-size",
       "title": "LiveEdit's scorecard row carries a time at the size a person asks for: an edit of a clip at 832 x 480",
       "steps": [

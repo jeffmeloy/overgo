@@ -21,20 +21,21 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// TestTheCUDALaneRunsNoRealModelTest holds the cuda lane to the suites on synthetic inputs it is for: no test file of
+// TestTheGateRunsNoRealModelTest holds the gate's cuda lane to the suites on synthetic inputs it is for: no test file of
 // its packages, as this host builds them, that calls the card reaches the data root, where the real models, their
 // checkpoints and the store lie, through the declarations of its package it names. Such a test is the cycle's, behind
 // modeltest, which the models lane runs every cycle (cuda-synthetic: the walk took in ten packages whose device tests
-// opened real models, and the lane ran 35 m 54 s over them where it had run 10 m 36 s). And a test moved there is
-// run: each package whose test files behind the cycle's tags call the card is one a cycle lane runs whole, or its
-// moved tests would run nowhere.
-func TestTheCUDALaneRunsNoRealModelTest(t *testing.T) {
+// opened real models, and the lane ran 35 m 54 s over them where it had run 10 m 36 s). SenseNova's request resources
+// had been left in the gate as measured in place, its file's bytes taken for its retained measurement's identity; the
+// capacity record reads that measurement from the store whatever the file now holds, so it carries the tag
+// (cuda-resources). And a test moved there is run: each package whose test files behind the cycle's tags call the card
+// is one a cycle lane runs whole, or its moved tests would run nowhere.
+func TestTheGateRunsNoRealModelTest(t *testing.T) {
 	t.Parallel()
 	repo := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	for _, pattern := range testcheck.Must(cudaLanePackages(repo))(t) {
 		directory := filepath.Join(repo, filepath.FromSlash(strings.TrimPrefix(pattern, "./")))
 		reads := dataRootReaders(t, directory)
-		delete(reads, measuredInPlace[pattern])
 		for _, file := range slices.Sorted(maps.Keys(reads)) {
 			t.Errorf("%s/%s calls the card and reads the data root in %s; it is the cycle's, behind //go:build modeltest, which the models lane runs",
 				pattern, file, strings.Join(reads[file], ", "))
@@ -67,11 +68,6 @@ func TestTheCUDALaneRunsNoRealModelTest(t *testing.T) {
 		}))
 	}
 }
-
-// measuredInPlace is, by package, the one device test file that reads the data root and stays in the gate: SenseNova's
-// request resources, whose bytes are its retained measurement's identity in docs/image_video_capacity.json, so it carries
-// the tag only when it is measured again on a card to itself (cuda-resources).
-var measuredInPlace = map[string]string{"./internal/sensenovarecipe": "runtime_resources_cuda_windows_test.go"}
 
 // dataRootReaders are, for each test file of directory as this host builds it that calls the card, its declarations
 // that reach the data root: one that calls what the data root's packages declare (dataroot, modeltest) or the model

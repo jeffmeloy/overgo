@@ -1,7 +1,55 @@
 {
   "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
-  "items": [],
+  "items": [
+    {
+      "id": "media-identity-read",
+      "title": "A media route is identified by the bytes it reads, parsed as it parses its manifest, and reads them once",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The MOSS and codec routes hash the files their own manifest reading names, and train and judge on the bytes they hashed",
+          "verify": "go test ./cmd/train -count=1 -run '^TestARouteIsIdentifiedByTheBytesItReads$'",
+          "files": [
+            "cmd/train",
+            "internal/trainingworkflow",
+            "cmd/validate"
+          ],
+          "rationale": "SQA-507 (P2), reopened by the review at 07a7a7185 and checked by the lead against cmd/train and internal/trainingworkflow at ef97df584: valid from source. MediaManifestBytes trims each line before taking its path, while mossManifest keeps a leading space, so a line ' red.png' is hashed as red.png and trained as ' red.png'; and MOSS reopens its held-out pictures, the codec route its clips, after the identity was taken, comparing neither reread with what was hashed. The change: the identity is taken from the paths each route's own manifest reading gives and from the bytes it then reads, which the route keeps and trains and judges on, so no file is read twice. First read every reread of a manifest's files.\n\nCheck: TestARouteIsIdentifiedByTheBytesItReads, a manifest line with a leading space and a file changed after admission: the identity names the bytes trained on."
+        }
+      ]
+    },
+    {
+      "id": "measure-retry",
+      "title": "A measurement retried at the same key runs no lanes it has passed, so a publication-only retry takes minutes, not the lanes' hours",
+      "steps": [
+        {
+          "id": "do",
+          "title": "measurePhases keeps the lanes' pass in the cycle's state for its key and credits it on a retry, as it credits the cells and the publication",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestARetryRunsNoLanesItPassed$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "SQA-502 (P2), reopened by the review at 07a7a7185 and checked by the lead against cmd/loop/improve.go at ef97df584: valid from source. measurePhases reads the state's Cells and Published but runs the preflight and the lanes before consulting either, so a retry whose cells and publication are credited still runs the lanes, 9 h 14 min in the close of 2026-11-25. The change: the state keeps the lanes' pass for its key (the commit, the store and the obligations), and a retry at that key credits the lanes as it credits the cells, the preflight running as before since it measures nothing. The rule that the checks the cells depend on always run is narrowed to: they run once a key.\n\nCheck: TestARetryRunsNoLanesItPassed, a stand-in validate whose lanes passed and whose publication failed, run again: the lanes are not run again, the publication is."
+        }
+      ]
+    },
+    {
+      "id": "gate-once",
+      "title": "A commit's gate runs each package suite once, the step's check before the whole tree's tests",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The invariants stage runs no ordinary package suite that the test stage runs, and the step's check runs before either",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingRunsEachSuiteOnce$'",
+          "files": [
+            "internal/landing"
+          ],
+          "rationale": "SQA-516 (P2), checked by the lead against internal/landing at ef97df584: valid from the landing records. The invariants stage runs four whole ordinary package suites before the step's verifier, and the test stage runs ./... again after it: at 692c145aa the scorecard-history fixture took 66 s of a 9 min 28 s invariants stage before a 9 s verifier; on the refused journey-attach/do attempt invariants took 215 s before a 9.7 s failure; at 6862d5287 the dispatch refusal test ran twice, 47 s and 41 s, and the trunk protection test 29 s and 35 s. A slow test run twice for one commit is the repeated testing the owner's review of 2026-11-25 named. The change: the step's check runs first, as the cheapest refusal, and a suite the test stage runs is not run by the invariants stage; what an invariant holds that ./... does not run stays. First list what each of the four suites holds that the test stage does not.\n\nCheck: TestALandingRunsEachSuiteOnce, the stages' commands for a change: no package suite in two stages, the verifier first."
+        }
+      ]
+    }
+  ],
   "decisions": [
     {
       "id": "skill-source-form",

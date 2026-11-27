@@ -55,14 +55,19 @@ func answerLanesPassedAt(ctx context.Context, output io.Writer, root, named stri
 		listed, err := gitauthority.Query(ctx, root, "diff", "--name-only", base, at)
 		return strings.Fields(string(listed)), err
 	})
-	return lanesPassedAt(output, results, landing.CycleLanes(), at, current)
+	listed := func(arguments, environment []string) ([]string, error) {
+		return listedTests(ctx, root, arguments, environment)
+	}
+	return lanesPassedAt(output, landing.CycleLanes(), at, current, listed)
 }
 
 // lanesPassedAt answers, from the results the lanes keep (plan.RecordTestResults), whether the slow tests passed at commit
-// (slow-whole): each lane run whole has a pass current at it, and each test of a lane run test by test whose result is
-// kept is a pass current at it (current, stillCurrent read up to commit). It says each lane's answer on output, and is
-// an error naming every lane that does not.
-func lanesPassedAt(output io.Writer, results map[string]plan.TestResult, lanes []landing.CycleLane, commit string, current func(lane, pkg, key string) bool) error {
+// (slow-whole): each lane run whole has a pass current at it, and each test a lane run test by test lists for its
+// packages (listed, as testSteps lists them) has one (current, stillCurrent read up to commit). A listed test with no
+// result is no pass, and a result of a test no package lists any more is not read: counted from the record's own keys,
+// one current pass had passed a lane missing a required result (SQA-517). It says each lane's answer on output, and is
+// an error naming every lane that does not pass.
+func lanesPassedAt(output io.Writer, lanes []landing.CycleLane, commit string, current func(lane, pkg, key string) bool, listed func(arguments, environment []string) ([]string, error)) error {
 	var other []string
 	for _, lane := range lanes {
 		if len(lane.Each) == 0 {
@@ -75,19 +80,22 @@ func lanesPassedAt(output io.Writer, results map[string]plan.TestResult, lanes [
 			continue
 		}
 		passed, not := 0, 0
-		for key := range results {
-			name, test, _ := strings.Cut(key, " ")
-			for _, arguments := range lane.Each {
-				if pkg := arguments[len(arguments)-1]; modulePrefix+strings.TrimPrefix(pkg, "./") == name {
-					if current(lane.Name, pkg, testKey(pkg, test)) {
-						passed++
-					} else {
-						not++
-					}
+		for _, arguments := range lane.Each {
+			pkg := arguments[len(arguments)-1]
+			names, err := listed(arguments, lane.Environment)
+			if err != nil {
+				fmt.Fprintf(output, "%s %s: its tests cannot be listed: %v\n", lane.Name, pkg, err)
+				not++
+			}
+			for _, name := range names {
+				if current(lane.Name, pkg, testKey(pkg, name)) {
+					passed++
+				} else {
+					not++
 				}
 			}
 		}
-		fmt.Fprintf(output, "%s: %d tests kept passed and current at %.12s, %d not\n", lane.Name, passed, commit, not)
+		fmt.Fprintf(output, "%s: %d listed tests passed and current at %.12s, %d not\n", lane.Name, passed, commit, not)
 		if not > 0 || passed == 0 {
 			other = append(other, lane.Name)
 		}

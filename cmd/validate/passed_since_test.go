@@ -10,32 +10,35 @@ import (
 	"overgo/internal/plan"
 )
 
-// TestOneWholeSlowRunIsReadFromTheLanesRecords holds -lanes-passed-at to the results the lanes keep (slow-whole,
-// lanes-record): it answers that every lane run whole has a pass current at the commit named, and every kept test of a
-// lane run test by test is one; a test that is not, and a lane run whole that is not, are named, and a lane with no
-// result kept is no pass.
-func TestOneWholeSlowRunIsReadFromTheLanesRecords(t *testing.T) {
+// TestASlowRunMissingARequiredTestDidNotPass holds -lanes-passed-at to every test the lanes require (slow-whole,
+// SQA-517): a lane run test by test passes where each test its packages list has a pass current at the commit named, a
+// listed test with no result is no pass beside the others' passes, and a result of a test no package lists any more is
+// not read; a lane run whole is judged by its own result. Counted from the record's keys, one current pass had passed a
+// lane missing a required result, and a deleted test's failure had kept one red.
+func TestASlowRunMissingARequiredTestDidNotPass(t *testing.T) {
 	t.Parallel()
 	lanes := []landing.CycleLane{
 		{Name: "audio"},
 		{Name: "models", Each: [][]string{{"test", "./internal/inference"}, {"test", "./cmd/evaluate"}}},
 	}
-	inference, evaluate := testKey("./internal/inference", "TestA"), testKey("./cmd/evaluate", "TestB")
-	results := map[string]plan.TestResult{testKey("", "audio"): {Commit: "c1"}, inference: {Commit: "c1"}, evaluate: {Commit: "c0"}}
-	held := map[string]bool{testKey("", "audio"): true, inference: true, evaluate: true}
+	listed := func(arguments, _ []string) ([]string, error) {
+		return map[string][]string{"./internal/inference": {"TestA"}, "./cmd/evaluate": {"TestB", "TestC"}}[arguments[len(arguments)-1]], nil
+	}
+	held := map[string]bool{testKey("", "audio"): true, testKey("./internal/inference", "TestA"): true, testKey("./cmd/evaluate", "TestB"): true}
 	current := func(_, _, key string) bool { return held[key] }
 	var output bytes.Buffer
-	if err := lanesPassedAt(&output, results, lanes, "c1", current); err != nil || !strings.Contains(output.String(), "models: 2 tests kept passed and current at c1, 0 not") {
-		t.Fatalf("every result current at c1: %v\n%s", err, output.String())
+	if err := lanesPassedAt(&output, lanes, "c1", current, listed); err == nil || !strings.HasSuffix(err.Error(), ": models") || !strings.Contains(output.String(), "models: 2 listed tests passed and current at c1, 1 not") {
+		t.Fatalf("a listed test with no result beside current passes: %v\n%s", err, output.String())
 	}
-	held[testKey("", "audio")], held[evaluate] = false, false
+	held[testKey("./cmd/evaluate", "TestC")], held[testKey("./cmd/evaluate", "TestGone")] = true, false
 	output.Reset()
-	if err := lanesPassedAt(&output, results, lanes, "c1", current); err == nil || !strings.HasSuffix(err.Error(), ": audio, models") || !strings.Contains(output.String(), "1 not") {
-		t.Fatalf("a lane run whole and a test that are not current are named: %v\n%s", err, output.String())
+	if err := lanesPassedAt(&output, lanes, "c1", current, listed); err != nil {
+		t.Fatalf("every listed test current, a test no package lists failed: %v\n%s", err, output.String())
 	}
+	held[testKey("", "audio")] = false
 	output.Reset()
-	if err := lanesPassedAt(&output, nil, lanes, "c1", func(string, string, string) bool { return false }); err == nil || !strings.Contains(output.String(), "audio: no pass current") {
-		t.Fatalf("lanes with no result kept: %v\n%s", err, output.String())
+	if err := lanesPassedAt(&output, lanes, "c1", current, listed); err == nil || !strings.Contains(output.String(), "audio: no pass current") {
+		t.Fatalf("a lane run whole with no pass current: %v\n%s", err, output.String())
 	}
 }
 

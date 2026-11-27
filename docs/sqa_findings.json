@@ -1,7 +1,7 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would finish liveedit-size/do as planned. The retained 32 by 16 timing leaves the cost of an 832 by 480 edit unknown. For faster commits, SQA-516 is still my first recommendation. The four landings after lanes-record spent 52 minutes combined in invariants and general tests. Only part of that work overlaps.",
+    "I would finish liveedit-size/do as planned. The scorecard has a 32 by 16 timing and still needs the 832 by 480 edit with a matching source clip. For faster commits, SQA-516 is still my first recommendation. The four landings after lanes-record spent 52 minutes combined in invariants and general tests. Only part of that work overlaps.",
     "Before accepting a whole-run MOSS verdict, I would make it agree with the runner about missing checkpoints (SQA-517) and make a deleted fixture invalidate its reader's pass (SQA-415). Before another full measurement, I would settle publication-only retry (SQA-502) and which run owns a publication (SQA-474).",
     "Before trusting another MOSS training proof, I would finish SQA-507 in the route that reads the pictures. The new identity reader can hash a different file from the encoder even when the corpus stays still."
   ],
@@ -193,21 +193,35 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-27",
-    "head": "be6e5733889718881b5f81588f9b5c55146aee9c",
+    "head": "ef97df5841d92b107f9fcaeb74500f4d99cc1d34",
     "findings": {
+      "SQA-517": {
+        "action": "filed",
+        "rows": [
+          "lanes-required/do"
+        ],
+        "note": "Answered by the lead on 2026-11-27 at ef97df584: valid from source, a check that passes without checking (lanesPassedAt, which the lead wrote in lanes-record/record, counts only the results the record holds, so a required test with no result goes unseen and a deleted test's failure stays). Filed as lanes-required/do."
+      },
+      "SQA-516": {
+        "action": "filed",
+        "rows": [
+          "gate-once/do"
+        ],
+        "note": "Answered by the lead on 2026-11-27 at ef97df584: valid from the landing records (four whole suites in invariants before the verifier, ./... again in the test stage, the dispatch refusal test 47 s and 41 s at 6862d5287), the repeated testing the owner's review of 2026-11-25 named. Filed as gate-once/do."
+      },
       "SQA-507": {
         "action": "filed",
         "rows": [
-          "training-identity/do"
+          "media-identity-read/do"
         ],
-        "note": "Answered by the lead on 2026-11-25 at 7e417691c: valid from source, a proof that passes for a dataset it did not read (BootstrapRecipe takes the manifest's bytes alone, so two corpora with one pictures.tsv share one dataset, split, processor and recipe); not observed. Filed as training-identity/do among the tooling rows."
+        "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (MediaManifestBytes trims a line mossManifest keeps, and both routes read their files again after hashing them). training-identity/do bound the identity to the media; media-identity-read/do binds it to the bytes the route reads, parsed as the route parses."
       },
       "SQA-502": {
         "action": "filed",
         "rows": [
-          "close-launcher/do"
+          "measure-retry/do"
         ],
-        "note": "Answered by the lead on 2026-11-25 at c21345fd7: valid from source (the launcher of the closing measurement runs validate's phases with neither the cycle's credit path nor its execution identity, so a run cut short and started again measures its finished cells again); the run in progress has not been cut short. Filed as close-launcher/do after moss-close: a by-hand entry to cmd/loop's cycle phases, which a launcher outside the session calls."
+        "note": "Answered again by the lead on 2026-11-27 at ef97df584, for the finding as reopened at 07a7a7185: valid from source (measurePhases runs the preflight and the lanes before reading the state that credits the cells and the publication, so a publication-only retry runs the lanes' 9 h again). close-launcher/do brought the closing run into the cycle (6862d5287); measure-retry/do credits a key's passed lanes on a retry."
       },
       "SQA-494": {
         "action": "implemented",

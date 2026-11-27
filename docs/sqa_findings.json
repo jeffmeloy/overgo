@@ -183,66 +183,78 @@
       "SQA-517": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten in the working tree after efa59bd59: valid from source (answerLanesPassedAt lists the tests and the cycle's lanes of the calling checkout, so asked about A from a later B it counts B's tests). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. Nothing asks -lanes-passed-at of another commit: no step's check and no code calls it, and a question about a commit is answered in that commit's checkout."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten in the working tree after efa59bd59: valid from source (answerLanesPassedAt lists the tests and the cycle's lanes of the calling checkout, so asked about A from a later B it counts B's tests). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. Nothing asks -lanes-passed-at of another commit: no step's check and no code calls it, and a question about a commit is answered in that commit's checkout.",
+        "answered": "7405a572b22c"
       },
       "SQA-507": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten in the working tree after efa59bd59: valid from source (codecRun.observed decodes the path admitted returns, so a clip replaced between admitted's reread and ffmpeg's open trains under the admitted identity). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The window needs a writer replacing a clip during a run's own decode; the corpus is read from the repository's fixtures and the operator's dataset, and no run has seen it. media-identity-read/do (ff47d11d6) closed what a corpus changed before or after admission does."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten in the working tree after efa59bd59: valid from source (codecRun.observed decodes the path admitted returns, so a clip replaced between admitted's reread and ffmpeg's open trains under the admitted identity). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The window needs a writer replacing a clip during a run's own decode; the corpus is read from the repository's fixtures and the operator's dataset, and no run has seen it. media-identity-read/do (ff47d11d6) closed what a corpus changed before or after admission does.",
+        "answered": "1741cace222e"
       },
       "SQA-494": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 94747b889: valid from source (a later capture stages a gate-written path's current bytes, a later same-file edit among them). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. It needs an edit, during a landing, to the very file the gate's own format stage rewrote; the lead formats before landing, so the format stage writes nothing, and the form observed at b1d6e237a, another path, is closed."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 94747b889: valid from source (a later capture stages a gate-written path's current bytes, a later same-file edit among them). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. It needs an edit, during a landing, to the very file the gate's own format stage rewrote; the lead formats before landing, so the format stage writes nothing, and the form observed at b1d6e237a, another path, is closed.",
+        "answered": "815e320ad374"
       },
       "SQA-492": {
         "action": "deferred",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa, which names another defect than the one answered before: valid from source (mediaCard fetches a picture's bytes before reuse, so two clicks whose fetches return out of order put the first picture in the slot; depthPreview can show the map of a picture switched away from). A served defect from source alone, not observed, so P3 by the severity rule agreed on 2026-11-13: deferred to the row that next touches internal/server/webui/composer.js or mod/generation.js, which fixes it there."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa, which names another defect than the one answered before: valid from source (mediaCard fetches a picture's bytes before reuse, so two clicks whose fetches return out of order put the first picture in the slot; depthPreview can show the map of a picture switched away from). A served defect from source alone, not observed, so P3 by the severity rule agreed on 2026-11-13: deferred to the row that next touches internal/server/webui/composer.js or mod/generation.js, which fixes it there.",
+        "answered": "28a7cb39377b"
       },
       "SQA-474": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (Measure takes a record count that grew as its own publication). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. It needs a second publisher writing a scorecard of the same commit into the same store while a cycle checks its lanes; one cycle publishes to a store, and a hand publication is made with no cycle running."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (Measure takes a record count that grew as its own publication). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. It needs a second publisher writing a scorecard of the same commit into the same store while a cycle checks its lanes; one cycle publishes to a store, and a hand publication is made with no cycle running.",
+        "answered": "1d5565e1741b"
       },
       "SQA-388": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (keep turns a subfolder's slash into a hyphen, so MOSS/a and MOSS-a collide). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The recorder's workflows write no two subfolders that differ only so, and no recording has collided."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (keep turns a subfolder's slash into a hyphen, so MOSS/a and MOSS-a collide). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The recorder's workflows write no two subfolders that differ only so, and no recording has collided.",
+        "answered": "905f3f16a56f"
       },
       "SQA-415": {
         "action": "filed",
         "rows": [
           "lanes-deleted-fixture/do"
         ],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 8eb8703de: valid from source (a deleted fixture is no tracked document, so its reader is reached by nothing and its kept pass stays current under -reached). A second round on lanes-fixtures/do, filed because deleting a fixture is ordinary work on the repository, which the lanes runner meets on the row that does it, and the lanes are the reliability the owner's review of 2026-11-25 asked for. Filed as lanes-deleted-fixture/do."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 8eb8703de: valid from source (a deleted fixture is no tracked document, so its reader is reached by nothing and its kept pass stays current under -reached). A second round on lanes-fixtures/do, filed because deleting a fixture is ordinary work on the repository, which the lanes runner meets on the row that does it, and the lanes are the reliability the owner's review of 2026-11-25 asked for. Filed as lanes-deleted-fixture/do.",
+        "answered": "22d389c510b0"
       },
       "SQA-346": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (a ClipMotion observation is bound by the encoder's base name, not its checkpoint and decoding). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The motion encoder is one fixed checkpoint, never replaced under its name, and no reading was taken under other decoding settings."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (a ClipMotion observation is bound by the encoder's base name, not its checkpoint and decoding). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. The motion encoder is one fixed checkpoint, never replaced under its name, and no reading was taken under other decoding settings.",
+        "answered": "0893e11df65b"
       },
       "SQA-342": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid as arithmetic and source counterexamples (a sign test against a fair sign where guessing wins 5/9, means where the ranking is geometric, a resume checked by its last draw). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. No admitted preset is shown to change by them, and no reading a user is offered is shown wrong."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid as arithmetic and source counterexamples (a sign test against a fair sign where guessing wins 5/9, means where the ranking is geometric, a resume checked by its last draw). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. No admitted preset is shown to change by them, and no reading a user is offered is shown wrong.",
+        "answered": "5295ce2e4e47"
       },
       "SQA-283": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (servingattempt.Record reads the recipe's state at publication and leaves it empty when the store cannot answer, a choice its comment states). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. A store read failing between a serving attempt and its record, or the same recipe activated again inside that attempt, has not occurred in any run, and neither costs time."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 692c145aa: valid from source (servingattempt.Record reads the recipe's state at publication and leaves it empty when the store cannot answer, a choice its comment states). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. A store read failing between a serving attempt and its record, or the same recipe activated again inside that attempt, has not occurred in any run, and neither costs time.",
+        "answered": "636aeb303e34"
       },
       "SQA-487": {
         "action": "declined",
         "rows": [],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 7e417691c: valid from source (holdWorktree returns no holder for a hook with no session_id, and beginTurn then clears the stop request). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. Every prompt hook the harness sends names its session; the nameless path is a fixture's, and no missed pause has been seen (the owner's stop of 2026-11-27 held)."
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 7e417691c: valid from source (holdWorktree returns no holder for a hook with no session_id, and beginTurn then clears the stop request). Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): a step only where a user meets it in normal use or it costs measured time. Every prompt hook the harness sends names its session; the nameless path is a fixture's, and no missed pause has been seen (the owner's stop of 2026-11-27 held).",
+        "answered": "c6cd594a33f6"
       },
       "SQA-518": {
         "action": "filed",
         "rows": [
           "model-view-git/do"
         ],
-        "note": "Answered by the lead on 2026-11-27 at efa59bd59: valid from source and the run's record (both walks in cmd/validate/cell_credit.go take every regular file under a model's directory, .git among them: 127 of 438 paths at efa59bd59, 15.65 GB, so a changed git log changes a cell's key and the obligations a retry is credited under). Filed as model-view-git/do, first, before the next measurement."
+        "note": "Answered by the lead on 2026-11-27 at efa59bd59: valid from source and the run's record (both walks in cmd/validate/cell_credit.go take every regular file under a model's directory, .git among them: 127 of 438 paths at efa59bd59, 15.65 GB, so a changed git log changes a cell's key and the obligations a retry is credited under). Filed as model-view-git/do, first, before the next measurement.",
+        "answered": "afded73498ec"
       }
     }
   },

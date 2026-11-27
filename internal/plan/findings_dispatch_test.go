@@ -29,15 +29,19 @@ func TestAnUnansweredP1IsDispatchedFirst(t *testing.T) {
 		t.Helper()
 		return testcheck.Must(ResolveDispatch(t.Context(), repository, DispatchRequest{Mode: ExecutionInteractive}))(t).Line
 	}
+	answered := func(id, action, actual string) string {
+		return `"` + id + `": {"action": "` + action + `", "answered": "` + openFinding{Actual: actual}.answeredAs() + `"}`
+	}
+	urgent, second := answered("SQA-7", "implemented", "an urgent defect"), answered("SQA-10", "declined", "a second-rank defect")
 	register("")
-	if got := line(); !strings.HasPrefix(got, "first file as a row the P1 finding no row names, SQA-7 (P1)") || !strings.Contains(got, "row / do") || !strings.Contains(got, "SQA-10") {
+	if got := line(); !strings.HasPrefix(got, "first file as a row the P1 finding no row names, SQA-7 [answer ") || !strings.Contains(got, "row / do") || !strings.Contains(got, "SQA-10") {
 		t.Fatalf("with an unanswered P1 the dispatch reads %q, want filing SQA-7 first, then row/do, SQA-10 named", got)
 	}
-	register(`"SQA-7": {"action": "implemented"}`)
+	register(urgent)
 	if got := line(); !strings.HasPrefix(got, "row / do") || !strings.Contains(got, "SQA-10") || strings.Contains(got, "SQA-7") {
 		t.Fatalf("with the P1 answered the dispatch reads %q, want row/do first and SQA-10 alone named", got)
 	}
-	register(`"SQA-7": {"action": "implemented"}, "SQA-10": {"action": "declined"}`)
+	register(urgent + ", " + second)
 	if got := line(); strings.Contains(got, "SQA-") {
 		t.Fatalf("with both findings answered, one declined, the dispatch reads %q, want neither named", got)
 	}

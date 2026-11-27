@@ -23,7 +23,10 @@ func TestDispatchFallsThroughToFindingsThenTheRun(t *testing.T) {
 	document := Plan{Campaign: "fixture", Items: []Item{{ID: "row", Title: "Row",
 		Steps: []Step{{ID: "do", Title: "Do", Rationale: "SQA-33 asks for it, and SQA-334 is beside it."}}}}}
 	filed := testcheck.Must(FindingsToFile(document, register))(t)
-	if want := []string{"SQA-7 (P1): an urgent defect", "SQA-10 (P2): a second-rank defect"}; !slices.Equal(filed, want) {
+	unanswered := func(id, severity, actual string) string {
+		return id + " [answer " + openFinding{Actual: actual}.answeredAs() + "] (" + severity + "): " + actual
+	}
+	if want := []string{unanswered("SQA-7", "P1", "an urgent defect"), unanswered("SQA-10", "P2", "a second-rank defect")}; !slices.Equal(filed, want) {
 		t.Fatalf("the findings to file = %v, want %v", filed, want)
 	}
 	unnamed := Plan{Campaign: "fixture"}
@@ -31,7 +34,7 @@ func TestDispatchFallsThroughToFindingsThenTheRun(t *testing.T) {
 		t.Fatalf("with no row naming them, the findings to file = %v, want the P1 and both P2s", filed)
 	}
 	line := dispatchLine(Dispatch{Complete: true, Findings: filed})
-	if !strings.Contains(line, "before the measurement run") || !strings.Contains(line, "SQA-7 (P1)") {
+	if !strings.Contains(line, "before the measurement run") || !strings.Contains(line, unanswered("SQA-7", "P1", "an urgent defect")) {
 		t.Fatalf("an empty plan's line = %q, want the findings to file before the measurement run", line)
 	}
 	document.Items[0].Steps[0].Rationale += " SQA-7 and SQA-10 too."

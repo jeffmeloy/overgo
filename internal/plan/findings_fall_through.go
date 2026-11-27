@@ -2,6 +2,8 @@ package plan
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -32,6 +34,16 @@ type openFinding struct {
 
 // named is the finding as a line names it, "SQA-n (Pn): what actually happens".
 func (f openFinding) named() string { return f.ID + " (" + f.Severity + "): " + f.Actual }
+
+// answeredAs is the text of the finding an answer answers, the first 12 hex digits of the SHA-256 of its input, expected
+// and actual: an answer that names another text answered the finding before the review rewrote it.
+func (f openFinding) answeredAs() string {
+	sum := sha256.Sum256([]byte(f.Input + "\x00" + f.Expected + "\x00" + f.Actual))
+	return hex.EncodeToString(sum[:])[:answeredDigits]
+}
+
+// answeredDigits is how many hex digits of a finding's digest an answer names it by.
+const answeredDigits = 12
 
 // triageDeferred is the lead's triage of a finding whose deciding evidence the next measurement run records,
 // triageImplemented of one the lead answered with rows, which waits for a recheck of its input against what it expects
@@ -82,18 +94,22 @@ func FindingsTouching(register []byte, paths []string) ([]string, error) {
 }
 
 // FindingsToFile are the findings an empty plan falls through to before the full measurement run: those at P1 and then
-// P2, each that no row of the plan names yet, written "SQA-n (Pn): what actually happens". A register that holds none,
-// or a plan whose rows name each, leaves the measurement run next.
+// P2, each that no row of the plan names yet and no answer answers, written "SQA-n [answer d] (Pn): what actually
+// happens", d the text an answer names it by (answeredAs). A register that holds none, or a plan whose rows name each,
+// leaves the measurement run next.
 func FindingsToFile(document Plan, register []byte) ([]string, error) {
 	findings, err := readFindings(register)
 	if err != nil {
 		return nil, err
 	}
-	// A finding the lead deferred to the run's record waits for that run, and so never holds it back (SQA-266).
+	// A finding the lead deferred to the run's record waits for that run, and so never holds it back (SQA-266). An answer
+	// counts for the text it names: nine findings the review rewrote after their answers kept them, and sat unread
+	// through every landing to efa59bd59 (triage-current).
 	var triage struct {
 		Triage struct {
 			Findings map[string]struct {
-				Action string `json:"action"`
+				Action   string `json:"action"`
+				Answered string `json:"answered"`
 			} `json:"findings"`
 		} `json:"master_lead_triage"`
 	}
@@ -101,15 +117,16 @@ func FindingsToFile(document Plan, register []byte) ([]string, error) {
 		return nil, err
 	}
 	findings = slices.DeleteFunc(findings, func(finding openFinding) bool {
-		return !slices.Contains(fallThroughSeverities, finding.Severity) || namedByARow(document, finding.ID) ||
-			slices.Contains([]string{triageDeferred, triageImplemented, triageDeclined}, triage.Triage.Findings[finding.ID].Action)
+		answer := triage.Triage.Findings[finding.ID]
+		answered := answer.Answered == finding.answeredAs() && slices.Contains([]string{triageDeferred, triageImplemented, triageDeclined}, answer.Action)
+		return !slices.Contains(fallThroughSeverities, finding.Severity) || namedByARow(document, finding.ID) || answered
 	})
 	slices.SortStableFunc(findings, func(a, b openFinding) int {
 		return cmp.Compare(slices.Index(fallThroughSeverities, a.Severity), slices.Index(fallThroughSeverities, b.Severity))
 	})
 	filed := make([]string, len(findings))
 	for index, finding := range findings {
-		filed[index] = finding.named()
+		filed[index] = finding.ID + " [answer " + finding.answeredAs() + "]" + strings.TrimPrefix(finding.named(), finding.ID)
 	}
 	return filed, nil
 }

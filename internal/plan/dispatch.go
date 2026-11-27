@@ -112,11 +112,12 @@ func firstP1(dispatch Dispatch) string {
 	return ""
 }
 
-// findingsNote names by id the open findings no row names, which a step is dispatched beside.
+// findingsNote names by id the open findings no row names, which a step is dispatched beside, each with the text an
+// answer names it by.
 func findingsNote(dispatch Dispatch) string {
 	ids := make([]string, 0, len(dispatch.Findings))
 	for _, finding := range dispatch.Findings {
-		id, _, _ := strings.Cut(finding, " ")
+		id, _, _ := strings.Cut(finding, " (")
 		ids = append(ids, id)
 	}
 	if len(ids) == 0 {

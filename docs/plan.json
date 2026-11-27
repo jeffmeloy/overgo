@@ -17,22 +17,6 @@
           "rationale": "Note: SQA-415 (P2), reopened by the review at 8eb8703de and checked by the lead against cmd/validate/lane_reach.go and internal/landing (CycleLanesReached) at efa59bd59: valid from source, a check that passes without checking, in the lanes the owner's review of 2026-11-25 asked to be reliable. stillCurrent judges a kept pass current when no path changed since it reaches its test. A deleted fixture is no tracked document, so documentReaders finds no reader for it and discover returns no reach: a reader's pass stays current, and -reached skips the test that would now fail on the missing file (fixtures/needle_upstream_calls.json for needle-reference, fixtures/moss/checkpoint.json for the models lane). Deleting a fixture is ordinary work on the repository, so the lanes runner meets it on the row that does it. The change: a changed path stillCurrent cannot resolve to a reader, a deleted document among them, makes no kept pass current in the lanes that read documents, which run again. First read discover and documentReaders, and which lanes read documents.\n\nCheck: TestADeletedFixtureRunsItsReaderAgain, a kept pass whose reader reads a fixture deleted since: the pass is not current."
         }
       ]
-    },
-    {
-      "id": "triage-current",
-      "title": "A finding the review rewrote after its answer is unanswered again, so the dispatch names it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A finding the review rewrote after its answer is unanswered again, so the dispatch names it",
-          "verify": "go test ./internal/plan -count=1 -run '^TestARewrittenFindingIsUnansweredAgain$'",
-          "files": [
-            "internal/plan",
-            "cmd/plan"
-          ],
-          "rationale": "Note: The lead's own finding, at efa59bd59: nine findings the review rewrote after the lead's answer (SQA-415 at 8eb8703de; SQA-474, 283, 492, 342, 388 and 346 at 692c145aa; SQA-494 at 94747b889; SQA-487 at 7e417691c) kept the answer \"implemented\", so plan.FindingsToFile counted them answered and no dispatch line named them: they sat unread through every landing since. A review that reopens a finding had removed its answer (e73ecc7ff); this one kept it, and nothing told the two apart. The change: an answer in master_lead_triage names the finding it answered by a digest of its input, expected and actual, and an answer whose digest is not the finding's current one is no answer, so a rewritten finding falls through as one no row names; the dispatch line gives each such finding's digest for the lead's answer. First read FindingsToFile, readFindings and the triage schema.\n\nCheck: TestARewrittenFindingIsUnansweredAgain, a finding answered \"implemented\" and then rewritten: it is listed as unanswered, and answered again under its new digest it is not."
-        }
-      ]
     }
   ],
   "decisions": [

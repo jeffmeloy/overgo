@@ -217,11 +217,11 @@
         "answered": "905f3f16a56f"
       },
       "SQA-415": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "lanes-deleted-fixture/do"
         ],
-        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 8eb8703de: valid from source (a deleted fixture is no tracked document, so its reader is reached by nothing and its kept pass stays current under -reached). A second round on lanes-fixtures/do, filed because deleting a fixture is ordinary work on the repository, which the lanes runner meets on the row that does it, and the lanes are the reliability the owner's review of 2026-11-25 asked for. Filed as lanes-deleted-fixture/do.",
+        "note": "Answered again by the lead on 2026-11-27 at efa59bd59, for the finding as rewritten at 8eb8703de: valid from source (a deleted fixture is no tracked document, so its reader is reached by nothing and its kept pass stays current under -reached). A second round on lanes-fixtures/do, filed because deleting a fixture is ordinary work on the repository, which the lanes runner meets on the row that does it, and the lanes are the reliability the owner's review of 2026-11-25 asked for. Filed as lanes-deleted-fixture/do. Implemented 2026-11-27 by lanes-deleted-fixture/do, the landing that carries this answer: a data file the checkout no longer holds reaches the lanes whose packages still name it, found by the same census over the checkout's Go, so a deleted fixture's reader runs again; a census that cannot be taken reaches the lane whole (TestADeletedFixtureRunsItsReaderAgain), for the review's recheck.",
         "answered": "22d389c510b0"
       },
       "SQA-346": {
@@ -249,11 +249,11 @@
         "answered": "c6cd594a33f6"
       },
       "SQA-518": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "model-view-git/do"
         ],
-        "note": "Answered by the lead on 2026-11-27 at efa59bd59: valid from source and the run's record (both walks in cmd/validate/cell_credit.go take every regular file under a model's directory, .git among them: 127 of 438 paths at efa59bd59, 15.65 GB, so a changed git log changes a cell's key and the obligations a retry is credited under). Filed as model-view-git/do, first, before the next measurement.",
+        "note": "Answered by the lead on 2026-11-27 at efa59bd59: valid from source and the run's record (both walks in cmd/validate/cell_credit.go take every regular file under a model's directory, .git among them: 127 of 438 paths at efa59bd59, 15.65 GB, so a changed git log changes a cell's key and the obligations a retry is credited under). Filed as model-view-git/do, first, before the next measurement. Implemented 2026-11-27 by model-view-git/do (429054b05): both walks of consumedFiles skip a checkout's .git, so a cell's key and the obligations digest name the model's files (TestAModelViewNamesNoGitAdministration), for the review's recheck.",
         "answered": "afded73498ec"
       }
     }

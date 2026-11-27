@@ -1,24 +1,7 @@
 {
   "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "lanes-deleted-fixture",
-      "title": "A deleted fixture leaves no kept pass of its reader current, so the lanes run the reader again",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A deleted fixture leaves no kept pass of its reader current, so the lanes run the reader again",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestADeletedFixtureRunsItsReaderAgain$'",
-          "files": [
-            "internal/landing",
-            "cmd/validate"
-          ],
-          "rationale": "Note: SQA-415 (P2), reopened by the review at 8eb8703de and checked by the lead against cmd/validate/lane_reach.go and internal/landing (CycleLanesReached) at efa59bd59: valid from source, a check that passes without checking, in the lanes the owner's review of 2026-11-25 asked to be reliable. stillCurrent judges a kept pass current when no path changed since it reaches its test. A deleted fixture is no tracked document, so documentReaders finds no reader for it and discover returns no reach: a reader's pass stays current, and -reached skips the test that would now fail on the missing file (fixtures/needle_upstream_calls.json for needle-reference, fixtures/moss/checkpoint.json for the models lane). Deleting a fixture is ordinary work on the repository, so the lanes runner meets it on the row that does it. The change: a changed path stillCurrent cannot resolve to a reader, a deleted document among them, makes no kept pass current in the lanes that read documents, which run again. First read discover and documentReaders, and which lanes read documents.\n\nCheck: TestADeletedFixtureRunsItsReaderAgain, a kept pass whose reader reads a fixture deleted since: the pass is not current."
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "skill-source-form",

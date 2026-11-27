@@ -27,6 +27,7 @@ import (
 	"overgo/internal/devicescope"
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 	"overgo/internal/processcontrol"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/testskip"
@@ -783,17 +784,30 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 	// and only when such a file changed), as a golden test reads fixtures/ (SQA-415). The census counts a test's reads,
 	// which compile into its own package's test binary alone, so a reader enters only itself, as a test file does. The
 	// work's own records, which change with every landing, reach none, as before; a census that cannot be taken reaches
-	// the lane whole.
+	// the lane whole. A file the checkout no longer holds is in no census of it, so its readers are the packages whose Go
+	// still names it, as the census finds a held document's: a deleted fixture had reached nothing, its reader's kept pass
+	// staying current under -reached while the reader failed on the missing file (SQA-415).
 	readers := sync.OnceValues(func() (map[string][]string, error) { return documentReaders(repo) })
+	source := sync.OnceValues(func() (gosyntax.Snapshot, error) { return gosyntax.DiscoverGo(repo, "internal", "cmd") })
 	readBy := func(name string, candidate lane) (by string, own []string) {
 		if slices.Contains(repoanalysis.WorkRecords, name) {
 			return "", nil
 		}
 		read, err := readers()
+		named := read[name]
+		if _, absent := os.Stat(filepath.Join(repo, filepath.FromSlash(name))); err == nil && errors.Is(absent, fs.ErrNotExist) {
+			var snapshot gosyntax.Snapshot
+			var census []repoanalysis.TrackedDocument
+			if snapshot, err = source(); err == nil {
+				if census, err = repoanalysis.TrackedDocumentCensus(snapshot, []string{name}); err == nil {
+					named = census[0].Readers
+				}
+			}
+		}
 		if err != nil {
 			return fmt.Sprintf("%s, whose readers are unknown (%v)", name, err), nil
 		}
-		for _, reader := range read[name] {
+		for _, reader := range named {
 			if candidate.owns(reader) {
 				by = cmp.Or(by, name+" read by "+reader)
 				own = append(own, reader)

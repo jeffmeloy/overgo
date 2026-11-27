@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"maps"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -82,5 +83,35 @@ func TestARepositoryDataFileReachesTheLanesThatReadIt(t *testing.T) {
 		if _, ran := held[unread]; ran {
 			t.Errorf("the %s lane runs for files none of its packages reads; want it left out", unread)
 		}
+	}
+}
+
+// TestADeletedFixtureRunsItsReaderAgain holds a close's lanes to a fixture deleted since a pass (SQA-415): the
+// needle-reference lane's kept pass, at a commit since which only fixtures/needle_upstream_calls.json was deleted while
+// its seq2seq test still names it, is not current, so the lane runs again; the deleted file had been in no census of the
+// checkout, reached nothing, and left the pass current while the reader failed on the missing file. A deleted file no
+// package names leaves the pass current.
+func TestADeletedFixtureRunsItsReaderAgain(t *testing.T) {
+	t.Parallel()
+	root, _ := fixtureRepository(t)
+	for name, content := range map[string]string{
+		"go.mod":                      "module fixture\n\ngo 1.26\n",
+		"internal/seq2seq/seq2seq.go": "// Package seq2seq is a fixture.\npackage seq2seq\n",
+		"internal/seq2seq/needle_test.go": "package seq2seq\n\nimport \"testing\"\n\n" +
+			"func TestNeedle(t *testing.T) { t.Log(\"fixtures/needle_upstream_calls.json\") }\n",
+	} {
+		testutil.WriteTextFile(t, filepath.Join(root, filepath.Dir(name)), filepath.Base(name), content, 0o600)
+	}
+	key := testKey("", "needle-reference")
+	current := func(deleted string) bool {
+		t.Helper()
+		since := func(string) ([]string, error) { return []string{deleted}, nil }
+		return stillCurrent(root, map[string]plan.TestResult{key: {Commit: "before"}}, since)("needle-reference", "", key)
+	}
+	if current("fixtures/needle_upstream_calls.json") {
+		t.Error("the needle lane's pass, its fixture deleted since while its test names it, is current; want the lane run again")
+	}
+	if !current("fixtures/unnamed.json") {
+		t.Error("the needle lane's pass, a file no package names deleted since, is not current; want it left current")
 	}
 }

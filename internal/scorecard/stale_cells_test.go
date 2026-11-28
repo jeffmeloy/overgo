@@ -119,8 +119,8 @@ func TestAQualityCellNotMeasuredThisRunSaysSo(t *testing.T) {
 		}
 	}
 	record := Record{Rows: []Row{row(failing), row(other)}}
-	failed := func(model artifact.ID, suite string) bool {
-		return model == failing && (suite == "store/mmlu-pro" || suite == "store/bbh")
+	failed := func(model artifact.ID, contract Contract) bool {
+		return model == failing && (contract.Suite == "store/mmlu-pro" || contract.Suite == "store/bbh")
 	}
 	got := record.NotEvaluated(failed)
 	cell := got.Rows[0].Cells[metric.Quality]

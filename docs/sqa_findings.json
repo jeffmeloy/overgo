@@ -36,15 +36,15 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-28",
-    "head": "930b0a1ac6e80bf1fd0c99646214a1d32a0f9980",
+    "head": "a9bf8be8b0e3da52344ca826c85e8af0432b3edc",
     "findings": {
       "SQA-527": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "run-record-chosen/do"
         ],
         "answered": "ad2bed79520c",
-        "note": "Answered again by the lead on 2026-11-28 at 930b0a1ac, for the finding as reopened a second time: valid from source (cmd/loop's runRecorder.write rewrites the run's record from its in-memory copy on the cells phase's exit, dropping the Chosen the validator wrote, and a credited restart begins a fresh record). Filed as run-record-chosen, ahead of the scorecard rows and before the next change-selected publication: the loop's writes keep the child's Chosen and a credited cells phase's choice is kept with its credit, exercised through publication in measurePhases' fixture."
+        "note": "Answered again by the lead on 2026-11-28, for the finding as reopened a second time: implemented by run-record-chosen/do (a9bf8be8b). The loop's record writes keep the choice the cells phase's validate wrote, and the cycle state keeps it beside the cells' credit, which a run of the key that credits the phase writes into its record for its publication (TestPublicationReadsTheCellsPhasesChoice runs measurePhases twice, its first publication cut short, for an empty choice and one of a model)."
       },
       "SQA-529": {
         "action": "implemented",

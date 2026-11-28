@@ -33,7 +33,6 @@ func TestAFailedBenchmarkReachesItsPublication(t *testing.T) {
 	if output.Len() != 0 {
 		t.Fatalf("recording the failure said %q", output.String())
 	}
-	failed := testcheck.Must(failedEvaluations(path))(t)
 	for _, read := range []struct {
 		model artifact.ID
 		suite string
@@ -43,7 +42,9 @@ func TestAFailedBenchmarkReachesItsPublication(t *testing.T) {
 		{model, "store/bbh", false},
 		{other, "store/mmlu-pro", false},
 	} {
-		if got := failed(read.model, read.suite); got != read.want {
+		cell := scorecard.Cell{Value: 0.5, Source: testutil.ArtifactID(t, artifact.KindEvaluation, read.suite), Contract: scorecard.Contract{Suite: read.suite}}
+		published := testcheck.Must(withoutFailedEvaluations([]scorecard.Row{{Model: read.model, Cells: map[metric.Name]scorecard.Cell{metric.Quality: cell}}}))(t)
+		if got := !published[0].Cells[metric.Quality].Measured(); got != read.want {
 			t.Errorf("%s on %s failed = %t, want %t", read.model, read.suite, got, read.want)
 		}
 	}

@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "failed-protocol",
-      "title": "A benchmark failure is recorded under its protocol, so a failed chat-template evaluation hides no other protocol's reading",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A benchmark failure is recorded under its protocol, so a failed chat-template evaluation hides no other protocol's reading",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAFailedProtocolHidesNoOtherProtocolsReading$'",
-          "files": [
-            "cmd/validate",
-            "internal/scorecard"
-          ],
-          "rationale": "Note: Files SQA-530: noteFailedCell records a benchmark failure by model and family alone, so failedEvaluations matches every store/mmlu-pro reading of the model and Record.NotEvaluated replaces Flash-Next's successful raw headline (68.57%) with a gap and drops its other protocols' held-out readings when the chat-template worker alone failed. The failure is recorded with the cell's bound protocol and matched to each reading's contract protocol; an older family-only record still matches the family. The failure-publication fixture covers both outcomes and the older record."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-image-gen-20261128t121402z",
       "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
       "steps": [

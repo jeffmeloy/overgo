@@ -136,18 +136,18 @@ func (record Record) Carry(since time.Time) Record {
 }
 
 // NotEvaluated is the record with each held-out quality whose evaluation failed this run, as failed says of its model and
-// suite, said to be unmeasured: a gap, never a reading, where the older value would read as holding. Age says nothing of a
+// contract (its suite and protocol), said to be unmeasured: a gap, never a reading, where the older value would read as holding. Age says nothing of a
 // quality, since a run asks a model only what the store holds no answer to, so this reads a failed evaluation and not a
 // time. A model's other suites are left out as a longer prompt's cell is.
-func (record Record) NotEvaluated(failed func(model artifact.ID, suite string) bool) Record {
+func (record Record) NotEvaluated(failed func(model artifact.ID, contract Contract) bool) Record {
 	record.Rows = slices.Clone(record.Rows)
 	for index := range record.Rows {
 		row := &record.Rows[index]
-		if cell := row.Cells[metric.Quality]; cell.Measured() && failed(row.Model, cell.Contract.Suite) {
+		if cell := row.Cells[metric.Quality]; cell.Measured() && failed(row.Model, cell.Contract) {
 			row.Cells = maps.Clone(row.Cells)
 			row.Cells[metric.Quality] = gap(fmt.Sprintf("not measured by this run: its evaluation on %s failed, and the reading before it was %s", cell.Contract.Suite, cell.QualityText()))
 		}
-		row.Heldout = slices.DeleteFunc(slices.Clone(row.Heldout), func(cell Cell) bool { return failed(row.Model, cell.Contract.Suite) })
+		row.Heldout = slices.DeleteFunc(slices.Clone(row.Heldout), func(cell Cell) bool { return failed(row.Model, cell.Contract) })
 	}
 	return record
 }

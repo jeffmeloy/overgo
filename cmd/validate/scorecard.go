@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"overgo/internal/inferencesurface"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
@@ -211,6 +213,14 @@ func measuredNames(root string) ([]string, bool, error) {
 // readings stand dated and are owed no measurement (Plan.Chosen; carried-unselected, SQA-527). Without the list a full
 // run measures every model, and no row is marked. A name no model answers to marks nothing here: the run refuses it.
 func markUnchosen(ctx context.Context, store *overgodb.Store, root string, rows []scorecard.Row) ([]scorecard.Row, error) {
+	// Within a run its cells phase's choice decides, which a change-selected run narrows past the list (runChoice).
+	if chosen, recorded, err := runChoice(); err != nil || recorded {
+		marked := slices.Clone(rows)
+		for index := range marked {
+			marked[index].Unchosen = !slices.Contains(chosen, choiceOf(marked[index].Model, marked[index].Task))
+		}
+		return marked, err
+	}
 	names, listed, err := measuredNames(root)
 	if err != nil || !listed {
 		return rows, err
@@ -220,6 +230,43 @@ func markUnchosen(ctx context.Context, store *overgodb.Store, root string, rows 
 		return nil, err
 	}
 	return unchosen(rows, registered, names), nil
+}
+
+// choiceOf is how a run's record names a model and task its cells were chosen for (plan.MeasurementRun.Chosen).
+func choiceOf(model artifact.ID, task recipe.Task) string { return model.String() + " " + string(task) }
+
+// noteChosen tells the measurement run under way which models and tasks its cells were chosen for, the plan's run and
+// background cells, for its publication to read which carried readings the run owes (markUnchosen): a change-selected
+// run leaves a listed model's cells it does not reach unchosen (Plan.Chosen), as MOSS's image cell after a change
+// confined to cmd/server, whose carried first output the list alone had filed as unmeasured (carried-reached, SQA-527).
+func noteChosen(output io.Writer, run Plan) {
+	path := os.Getenv(clioptions.MeasurementRunEnvironment)
+	if path == "" {
+		return
+	}
+	var chosen []string
+	for _, sel := range append(slices.Clone(run.Run), run.Background...) {
+		if key := choiceOf(sel.Model, sel.Kind); !slices.Contains(chosen, key) {
+			chosen = append(chosen, key)
+		}
+	}
+	if err := plan.RecordChosen(path, chosen); err != nil {
+		fmt.Fprintf(output, "validate -run: the run record %s does not keep the cells it chose: %v\n", path, err)
+	}
+}
+
+// runChoice reads from the measurement run under way the models and tasks its cells were chosen for, and whether its
+// cells phase recorded them; outside a run there is none.
+func runChoice() ([]string, bool, error) {
+	path := os.Getenv(clioptions.MeasurementRunEnvironment)
+	if path == "" {
+		return nil, false, nil
+	}
+	var run plan.MeasurementRun
+	if err := jsonfile.Decode(path, &run); err != nil {
+		return nil, false, fmt.Errorf("validate: the run record %s: %w", path, err)
+	}
+	return run.Chosen, run.Chosen != nil, nil
 }
 
 // unchosen is the rows with each marked Unchosen whose model none of names answers to, as -model reads a name: by the

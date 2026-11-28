@@ -196,6 +196,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		fmt.Fprintf(output, "validate -run: %s %s is not run: %s\n", sel.Validation, displayName(sel.ModelValidation), sel.Reason)
 	}
 	cells, suites := plan.Run, plan.Suites
+	if scope == scopeCells || scope == scopeCycle {
+		noteChosen(output, plan)
+	}
 	switch scope {
 	case scopeBackground:
 		cells, suites = plan.Background, nil

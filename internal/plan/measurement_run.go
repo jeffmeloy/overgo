@@ -38,6 +38,21 @@ type MeasurementRun struct {
 	Digests map[string]string `json:"digests,omitempty"`
 	// Fall is the greatest fall of free space the run saw (landing.WatchFall), which a landing's space floor reads.
 	Fall uint64 `json:"space_fall,omitzero"`
+	// Chosen is each model and task the run's cells were chosen for, as its cells phase records them (RecordChosen),
+	// from which its publication reads which carried readings the run owes: nil where no cells phase recorded a choice,
+	// empty where it chose none (carried-reached, SQA-527).
+	Chosen []string `json:"chosen"`
+}
+
+// RecordChosen keeps in the run recorded at path the models and tasks its cells were chosen for, in place of any an
+// earlier phase kept.
+func RecordChosen(path string, chosen []string) error {
+	var run MeasurementRun
+	if err := jsonfile.Decode(path, &run); err != nil {
+		return err
+	}
+	run.Chosen = append([]string{}, chosen...)
+	return jsonfile.Write(path, run, runRecordMode)
 }
 
 // MeasurementPhase is one phase of a run: when it began, when it is expected to

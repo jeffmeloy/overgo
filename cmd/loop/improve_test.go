@@ -133,6 +133,37 @@ func gitFixture(t *testing.T, directory string, arguments ...string) string {
 	return strings.TrimSpace(string(output))
 }
 
+// TestAGapThatOpensAgainIsFiledUnderANewID holds a proposal to an id no landing holds (propose-landed-key): a gap whose
+// key a landed row names is filed under its key and the scorecard it was found on, verified by the gap's own key, and a
+// second pass adds nothing while that row is open; a gap whose key never landed is filed under the key. Under the key
+// alone, nine rows the measurement at 3a7b3877d filed were refused by every landing after it as landed steps reopened.
+func TestAGapThatOpensAgainIsFiledUnderANewID(t *testing.T) {
+	t.Parallel()
+	repository := t.TempDir()
+	gitFixture(t, repository, "init", "-q", "-b", "master")
+	gitFixture(t, repository, "commit", "-q", "--allow-empty", "-m", "scorecard-unmeasured-inference/do: measured\n\nLanded-Row: scorecard-unmeasured-inference/do")
+	improver := improvement{root: repository, plan: emptyPlan(t)}
+	published := scorecard.Record{Name: "scorecard-20261128T121402Z.json"}
+	gaps := []scorecard.Gap{{Key: "scorecard-unmeasured-inference", Title: "Measure inference's unmeasured cells"}, {Key: "scorecard-unmeasured-training", Title: "Measure training's unmeasured cells"}}
+	if added := testcheck.Must(improver.Propose(published, gaps))(t); added != 2 {
+		t.Fatalf("proposed %d rows; want both gaps", added)
+	}
+	var filed []string
+	for _, item := range testcheck.Must(plan.Load(improver.plan))(t).Items {
+		filed = append(filed, item.ID+" "+item.Steps[0].Verify)
+	}
+	want := []string{
+		"scorecard-unmeasured-inference-20261128t121402z go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
+		"scorecard-unmeasured-training go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
+	}
+	if !slices.Equal(filed, want) {
+		t.Errorf("filed %q; want %q", filed, want)
+	}
+	if added := testcheck.Must(improver.Propose(published, gaps))(t); added != 0 {
+		t.Errorf("a second pass proposed %d rows; want none while their rows are open", added)
+	}
+}
+
 // TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain publishes two scorecards of a
 // commit in a repository that holds no main, the second worse than the first. The cell is
 // compared with its newest earlier measurement, the first record, whatever any branch points

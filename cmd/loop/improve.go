@@ -306,14 +306,23 @@ func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (
 		return 0, err
 	}
 	for _, gap := range gaps {
-		if slices.ContainsFunc(document.Items, func(item plan.Item) bool { return item.ID == gap.Key || slices.Contains(gap.Aliases, item.ID) }) {
+		if slices.ContainsFunc(document.Items, func(item plan.Item) bool {
+			return item.ID == gap.Key || slices.Contains(gap.Aliases, item.ID) || slices.ContainsFunc(item.Steps, func(step plan.Step) bool { return verifiesGap(step.Verify, gap.Key) })
+		}) {
 			continue
 		}
 		verify := "go run ./cmd/validate -scorecard -gap " + gap.Key
 		if gap.Restore {
 			verify += " -target " + strconv.FormatFloat(gap.Target, 'g', -1, targetBits)
 		}
-		document.Items = append(document.Items, plan.Item{ID: gap.Key, Title: gap.Title, Steps: []plan.Step{{
+		// A gap that opens again after its row landed is filed under its key and the scorecard it was found on: under the
+		// key alone, a landing refuses the row as a landed step reopened, and nine rows the measurement at 3a7b3877d filed
+		// so refused every landing after it (propose-landed-key).
+		id := gap.Key
+		if landed, _ := gitauthority.Query(context.Background(), w.root, "log", "-1", "--format=%h", "--fixed-strings", "--grep=Landed-Row: "+gap.Key+"/"); len(bytes.TrimSpace(landed)) > 0 {
+			id = gap.Key + "-" + strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(published.Name, "scorecard-"), ".json"))
+		}
+		document.Items = append(document.Items, plan.Item{ID: id, Title: gap.Title, Steps: []plan.Step{{
 			ID: proposalStep, Title: gap.Title, Verify: verify,
 			Rationale: gap.Detail + "\nServes: measure and find the gap; the loop proposed this row from scorecard " + published.Name +
 				". Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
@@ -328,6 +337,13 @@ func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (
 	}
 	w.run.filed(added)
 	return added, nil
+}
+
+// verifiesGap says a step's check is the gap's: validate -scorecard -gap naming that key, whatever the row's id.
+func verifiesGap(verify, key string) bool {
+	fields := strings.Fields(verify)
+	at := slices.Index(fields, "-gap")
+	return at >= 0 && at+1 < len(fields) && fields[at+1] == key
 }
 
 // targetBits is the precision a decline's restoration target is written in, the float64 it is read as.

@@ -163,21 +163,6 @@
       ]
     },
     {
-      "id": "propose-landed-key",
-      "title": "A gap that opens again after its row landed is filed under a new id, so no landing is refused for it",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A gap that opens again after its row landed is filed under a new id, so no landing is refused for it",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestAGapThatOpensAgainIsFiledUnderANewID$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Note: The lead's own finding, observed at 3a7b3877d: the measurement's Propose filed scorecard-regressed-206f3f994f77c003, the key of a row landed on 2026-10-31 (2314b1de7), and every landing after it was refused (\"the change's plan holds ... which landed as 2314b1de755d: the plan is from before that landing\"), the gate reading it as a landed step a merge reopened. A gap key is the same each time its gap opens, and Propose skips only a key the plan holds now, not one that landed, so a gap that opens again after its row closed blocks every commit until the lead retires it by hand. The change: Propose files a gap whose key landed before under that key with the scorecard it was found on appended, so the gap is worked again under an id no landing holds. First read Propose and how a landing reads Landed-Row trailers.\n\nCheck: TestAGapThatOpensAgainIsFiledUnderANewID, a gap whose key a landed row holds is filed under another id that names the key."
-        }
-      ]
-    },
-    {
       "id": "flashnext-peak-capacity",
       "title": "Flash-Next's peak device memory is declared at the card's capacity, the level its experts' fill of the free card reaches",
       "steps": [

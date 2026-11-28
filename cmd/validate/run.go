@@ -223,8 +223,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	// besideWork are the timed cells measured beside other work both times, which keep the times the scorecard had and
 	// earn no credit, so a resumed cycle measures them again (contended-credit, SQA-481).
 	// unsized are the cells at the size a person asks for whose models state no size of their own: they measure
-	// nothing and fail nothing (user-size-inapplicable).
-	var unbound, failed, inapplicable, besideWork, unsized []string
+	// nothing and fail nothing (user-size-inapplicable); unserved are the cells under a protocol their model's output
+	// cannot serve, as the evaluator refused it, which measure nothing and fail nothing either (ocr-domains).
+	var unbound, failed, inapplicable, besideWork, unsized, unserved []string
 	acquired := 0
 	// acquiredOf counts each model's cells, which say when a trained model has had its one measurement.
 	acquiredOf := map[artifact.ID]int{}
@@ -240,6 +241,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			besideWork = append(besideWork, subject)
 		case errors.Is(err, errNoLargerRequest):
 			unsized = append(unsized, fmt.Sprintf("%s: %v", subject, err))
+		case errors.Is(err, errProtocolCannotServe):
+			unserved = append(unserved, fmt.Sprintf("%s: %v", subject, err))
 		default:
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
 		}
@@ -368,13 +371,16 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			if timedValidation(sel.Validation) && sel.Validation != projectionProof {
 				return acquireServing(ctx, output, root, name, args, environment...)
 			}
+			if benchmark(sel.ModelValidation) {
+				return artifact.ID{}, acquireEvaluation(ctx, output, root, name, args, environment...)
+			}
 			_, err := acquire(ctx, output, root, name, args, environment...)
 			return artifact.ID{}, err
 		}
 		subject := fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation)
 		settle := func(err error) {
 			record(subject, err)
-			if err != nil && !errors.Is(err, errInapplicable) && benchmark(sel.ModelValidation) {
+			if err != nil && !errors.Is(err, errInapplicable) && !errors.Is(err, errProtocolCannotServe) && benchmark(sel.ModelValidation) {
 				noteFailedEvaluation(output, sel.ModelValidation)
 			}
 			if err == nil {
@@ -428,6 +434,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	if len(unsized) > 0 {
 		fmt.Fprintf(output, "validate -run: %d cell(s) at the size a person asks for measured nothing, their models stating no size of their own:\n  %s\n", len(unsized), strings.Join(unsized, "\n  "))
+	}
+	if len(unserved) > 0 {
+		fmt.Fprintf(output, "validate -run: %d cell(s) measured nothing under a protocol their models' output cannot serve, as the evaluator refused it:\n  %s\n", len(unserved), strings.Join(unserved, "\n  "))
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("validate -run: re-acquired %d cell(s); %s", acquired, strings.Join(problems, "; "))
@@ -569,6 +578,28 @@ var errInapplicable = errors.New("declared inapplicable here")
 // own, so there is no larger request than its verified one to measure (servingattempt.NoLargerRequest,
 // user-size-inapplicable): the cell measures nothing and fails nothing, and the scorecard keeps no time at that size.
 var errNoLargerRequest = errors.New("no larger request to measure")
+
+// errProtocolCannotServe marks a benchmark cell whose evaluator refused its protocol, the model's generated answers
+// naming no candidate (evaluation.ErrProtocolRefused): the cell measures nothing and fails nothing, and the model's
+// cell under its other protocol is measured. Unlimited-OCR's chat-template mmlu-pro had failed every fill at 3a7b3877d,
+// the OCR decoder answering " 1. The answer to the question" (ocr-domains).
+var errProtocolCannotServe = errors.New("a protocol the model's output cannot serve")
+
+// acquireEvaluation runs a benchmark cell's evaluator, naming it a file for a protocol's refusal
+// (evaluation.RefusalEnvironment), and is errProtocolCannotServe with the refusal's words where the evaluator wrote one.
+func acquireEvaluation(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) (err error) {
+	scratch, err := os.MkdirTemp("", "overgo-validate-evaluation-")
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, os.RemoveAll(scratch)) }()
+	path := filepath.Join(scratch, "refusal.txt")
+	err = runCell(ctx, output, root, name, args, append(slices.Clone(environment), evaluation.RefusalEnvironment+"="+path)...)
+	if refusal, read := os.ReadFile(path); read == nil {
+		return fmt.Errorf("%w: %s", errProtocolCannotServe, refusal)
+	}
+	return err
+}
 
 // errMeasuredBesideWork marks a timed cell measured beside other work both times: no usable timing was taken, the
 // scorecard keeps the times it had, and the cell earns no credit, so a resumed cycle measures it again on a quiet

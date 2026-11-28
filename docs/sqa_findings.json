@@ -1,62 +1,64 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "Master took cells-retry/reach before hash-once/do. That order made sense. The original retry case now works and the dry run and background fill share hashes. With the plan empty, I would let the measurement at 3a7b3877d finish with the 95 cell results it has kept. The November 25 workflow recording put first-pass text-to-image at 18.521 s against ComfyUI's 13.552 s. Neither landing measures a change in that gap.",
-    "I would finish SQA-524 first. A partial scorecard can still hide a failed first measurement at the size a user requests. SQA-526 comes next because it requires a mutable input to change during a resumed run. Both cases fit existing selection and credit fixtures without another GPU draw."
+    "I would keep flashnext-projection-exact/do ahead of the scorecard cleanup. Its exact-token mismatch was the one failure among 103 selected measurements. The published MOSS reading was 58.834 s for a 1024 x 1024, 50-step flow Euler request. The Ultra section comparison still needs its own workflow recording.",
+    "I would take SQA-527 before acting on the unmeasured inference and training rows. Six entries in those two rows ask for Qwen3.5-9B readings the plan deliberately carries. Removing those requests leaves the genuine gaps visible. SQA-528 comes second. The existing run report could identify a failed proof while other cells continue, using the error the validator already has."
   ],
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-524",
+      "id": "SQA-527",
       "severity": "P2",
       "files": [
-        "cmd/validate/main.go",
+        "docs/verification/measured_models.json",
         "cmd/validate/selection.go",
-        "cmd/validate/reach.go",
         "cmd/validate/scorecard.go",
-        "cmd/validate/run.go",
-        "cmd/validate/reached_from_test.go"
+        "internal/scorecard/record.go",
+        "internal/scorecard/stale_cells_test.go",
+        "cmd/loop/improve.go"
       ],
-      "input": "The previous scorecard has no image-gen reading for a listed, untrained MOSS model. Only cmd/server changed since that record. The first-measurement rule selects image-proof and image-user-size. The proof succeeds, the 1024 x 1024 request fails transiently, and the cycle publishes the proof's valid timing. Interrupt before fill clears cycle credit, then resume at the same commit and store.",
-      "expected": "Use the pre-attempt scorecard for the first-measurement decision in both list and reach selection. The successful proof keeps its cell credit and the user-size cell stays due until measured. The existing retry fixture can check which cells survive selection with an older scorecard and a partial publication.",
-      "actual": "On a6e5c740f, cells-retry/reach fixes the original case where a source change reached the model. In this first-measurement case reachedFrom correctly returns the older commit, and cmd/server reaches neither image cell. Both calls to Plan.Chosen still use lastRecord for readBefore. The proof's timing satisfies that model-and-task lookup for both cells, so the reach filter drops the failed user-size request before credit is consulted. The cells phase can pass without it. This is a source counterexample."
+      "input": "Run the representative-model selection with valid prior Qwen3.5-9B inference and training readings. The list names Qwen3.5-4B for the shared runtime and trainer. The 9B model is outside this run's selection. Publish the scorecard and file its gaps.",
+      "expected": "Keep the dated 9B readings visible and let them stand until selected. Use the validator's existing selection when deciding which carried readings are owed. Keep gaps for a selected measurement that failed or yielded no current result, and keep genuinely missing metrics. Exercise both selected and intentionally skipped readings in the existing carry fixture.",
+      "actual": "Observed at 3a7b3877d and present in committed plan 1251fe747. The November 28 scorecard carries the same six sources as its predecessor for 9B inference first output, throughput, load and peak memory, and training load and peak memory. Record.gaps treats every Carried cell as unmeasured. Propose put all six into scorecard-unmeasured-inference-20261128t121402z and scorecard-unmeasured-training-20261128t121402z. The same rows also contain genuine gaps."
     },
     {
-      "id": "SQA-526",
+      "id": "SQA-528",
       "severity": "P2",
       "files": [
-        "cmd/validate/bound_records.go",
-        "cmd/validate/cell_credit.go",
         "cmd/validate/run.go",
-        "cmd/validate/run_digests_test.go",
-        "cmd/validate/cell_credit_test.go"
+        "cmd/validate/failed_evaluations.go",
+        "cmd/validate/projection_proof.go",
+        "internal/plan/measurement_run.go",
+        "cmd/loophook/main.go"
       ],
-      "input": "Resume with valid credit for a guard cell at the same commit and store, a registered local weights file and a current discovery memo. After the dry run hashes the original weights, overwrite the same path with different bytes of the same size and restore its modification time. The cells phase binds the still-registered model under the same run record.",
-      "expected": "At the point of granting prior credit, require evidence that the mutable input still has the credited bytes. Keep the shared digest for inputs whose contents are pinned. Where identity cannot be established, revalidate the affected input or withhold its credit. Exercise the existing changed-weights credit case with the run record enabled.",
-      "actual": "On a6e5c740f, runDigests returns the dry run's digest by path. consumedFiles finds that digest and constructs the old cell key. executeMeasured sees credit.has and counts the cell as acquired without opening its weights. TestARunHashesEachModelFileOnce explicitly expects a within-run overwrite to preserve the binding. TestResumedRunStartsAgainACellWhoseWeightsChanged checks the opposite credit decision without the digest record. This is a source counterexample. No file change was observed in the active run."
+      "input": "A recorded cells phase runs Flash-Next's projection-proof as a recipe verification. Its exact suite rejects image-1-bottom because the generated token has a leading space. Other selected cells can keep running. Read the existing measurement run report.",
+      "expected": "When the validator receives the failed proof's verdict, record its model, validation and concise cause in the active phase through plan.RecordFailure. The existing status reader can then report the failure while the other cells finish. Preserve the benchmark-specific marker used by scorecard publication and the distinct outcomes for inapplicable or contended measurements.",
+      "actual": "Observed at 3a7b3877d. The retained cells phase ended after 2 h 43 min 31 s with a failed verdict and no failed entry. The committed flashnext-projection-exact/do row names the mismatch. At 1251fe747, settle sends a failed projection proof only to the in-memory error list. Its persistent failure call is conditional on benchmark, which excludes projection proofs. The terminal error includes the cause, but MeasurementRun.Report cannot name the failed cell from the retained record."
     }
   ],
   "master_lead_triage": {
-    "at": "2026-11-27",
-    "head": "efa59bd5922f60635af122cf728e6e1830647355",
+    "at": "2026-11-28",
+    "head": "1251fe7470aaf02a05b8af7ce97892851eeb7118",
     "findings": {
-      "SQA-524": {
-        "action": "implemented",
+      "SQA-527": {
+        "action": "filed",
         "rows": [
-          "compared-earlier/do"
+          "carried-unselected/do"
         ],
-        "answered": "7be240658e7e",
-        "note": "Answered again by the lead on 2026-11-28 at a6e5c740f, for the finding as reopened: valid from source, the lead's cure falling short (Plan.Chosen still judged a retry's first readings against its own partial publication, so a failed first reading at a person's size whose model and task the proof's timing answered there was dropped). Fixed in the measurement flow every retry takes, so filed despite a second round. Implemented by compared-earlier/do, the landing that carries this answer: the whole run is compared with the newest record of a commit other than the one checked out (reachedFrom), its contracts, promotion, reach and kept first readings alike; lastRecord goes (TestARunIsComparedWithAnEarlierCommitsRecord), for the review's recheck."
+        "answered": "93ccdc423e8a",
+        "note": "Answered by the lead on 2026-11-28 at 1251fe747: valid from source (Record.gaps counts every carried cell as unmeasured, so Qwen3.5-9B's six readings, carried because the run selects Qwen3.5-4B, sit in the unmeasured inference and training rows beside genuine gaps). Filed as carried-unselected, ahead of the scorecard rows it thins: a carried reading of a model outside the run's selection is no gap, while a selected measurement that broke or yielded nothing stays one."
       },
-      "SQA-526": {
-        "action": "declined",
-        "rows": [],
-        "answered": "f91c1bbc7207",
-        "note": "Answered by the lead on 2026-11-28 at a6e5c740f: valid from source (within a run a file is identified once, by path, so a model file overwritten during the run keeps its first digest and its cell's credit). Declined: identifying each file once a run is hash-once's purpose, and a model file is never written in place, the model store being kept and never written through (owner doctrine); a file changed within one run is no case a run supports, and the next run binds it afresh."
+      "SQA-528": {
+        "action": "filed",
+        "rows": [
+          "proof-failure-recorded/do"
+        ],
+        "answered": "9a6504376850",
+        "note": "Answered by the lead on 2026-11-28 at 1251fe747: valid from source (settle records a failure in the phase only for a benchmark, so Flash-Next's broken projection proof reached the run's in-memory errors and its terminal error but never the record MeasurementRun.Report reads). Filed as proof-failure-recorded: a broken recipe proof is recorded through plan.RecordFailure as it breaks, keeping the benchmark marker publication reads and the distinct outcomes for cells that measured nothing."
       }
     }
   },
-  "next_finding_number": 527,
+  "next_finding_number": 529,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

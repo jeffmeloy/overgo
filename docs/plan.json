@@ -7,16 +7,47 @@
       "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
       "steps": [
         {
-          "id": "do",
-          "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go run ./cmd/validate -run -model Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf -validation projection-proof -repo C:/Users/jeffm/overgo_data/overgodb-store",
+          "id": "host-accuracy",
+          "title": "An expert computed on the host is as near the reference as on the card, so Flash-Next's answer does not move with the card's free memory",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -timeout=0 -run '^TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost$'",
           "files": [
-            "cmd",
-            "internal",
-            "docs",
-            "fixtures"
+            "internal/hostexpert",
+            "internal/cuda/executor"
           ],
-          "rationale": "Note: Observed in the measurement at 3a7b3877d: Qwen3.8 Flash Next's projection-proof failed its exact suite on case \"image-1-bottom\", one token generated, \" D\" where the suite holds \"D\" (dataset-shard 1aea56cf9011), the only cell of 103 that failed. A labelled hypothesis, to be measured first: the run kept the card quiet, Flash-Next's experts fill the card memory the round leaves free (its peak rose 334 MB, flashnext-peak-capacity), more experts ran on the card than in the reading the suite was pinned beside, and the card's and the host's expert products differ enough to flip a near tie at the first token. The first step reads the cell again alone on a quiet card and records which experts the round held where, so the cause is named before any change: an exact suite that a placement flips is a check that depends on the card's free memory, and a path that answers otherwise on the card is a defect of the round.\n\nCheck: the projection-proof cell of Qwen3.8 Flash Next, measured alone, passes, or its failure is named with the round's expert placement."
+          "rationale": "Measured at 1251fe747 by TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost on one routed layer of each of Flash-Next's formats, 64 tokens' 128 rows: with every expert on the card the output stands 0.0009 to 0.0014 from the f32 reference at most; with expert 0 on the card and the rest on the host it stands 0.056 to 0.074 (iq4_xs-iq4_nl 0.0564, fused 0.0580, iq3_s-iq4_nl 0.0739, iq4_xs-q8_0 0.0573), sixty times farther, from the host quantizing each token's activations as Q8_K and each expert's intermediate as Q8_0, as llama.cpp's CPU backend does. So the host is the inexact side, and the card quantizing as the host does (choice a) would make every answer worse to make two agree: the decision is that an expert computed on the host is computed as near the reference as the card computes it, within twice the card's difference, and its cost in the host's expert time on Flash-Next's decode is read before and after (TestFlashNextDecodeRoundIsStratas' rate, the hosted experts' share). Bit-for-bit agreement of a card and a CPU is no aim: their accumulation orders differ. First read internal/hostexpert's rows and the formats' vec-dot types.\n\nCheck: TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost on the card.\n\nNote: files set to internal/hostexpert, internal/cuda/executor: the host's expert arithmetic and the check that holds it to the card's"
+        }
+      ]
+    },
+    {
+      "id": "carried-unselected",
+      "title": "A carried reading of a model outside the run's selection is no gap, so the scorecard files only the measurements a run owes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A carried reading of a model outside the run's selection is no gap, so the scorecard files only the measurements a run owes",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestACarriedReadingOutsideTheSelectionIsNoGap$'",
+          "files": [
+            "internal/scorecard",
+            "cmd/validate",
+            "cmd/loop"
+          ],
+          "rationale": "Note: Files SQA-527: Record.gaps counts every carried cell as unmeasured, so Qwen3.5-9B's six readings, carried because the run selects Qwen3.5-4B, sit in the unmeasured inference and training rows beside genuine gaps. A carried reading of a model outside the run's selection (the validator's own selection) is no gap; a selected measurement that broke or yielded nothing, and a missing metric, stay gaps. The carry fixture holds both a selected and a skipped reading."
+        }
+      ]
+    },
+    {
+      "id": "proof-failure-recorded",
+      "title": "A broken recipe proof is recorded in its phase as it breaks, so the measurement run's report names the cell while the others run",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A broken recipe proof is recorded in its phase as it breaks, so the measurement run's report names the cell while the others run",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestABrokenProofIsRecordedInItsPhase$'",
+          "files": [
+            "cmd/validate",
+            "internal/plan"
+          ],
+          "rationale": "Note: Files SQA-528: settle records a failure in the phase only for a benchmark, so Flash-Next's broken projection proof at 3a7b3877d reached the run's in-memory errors and terminal error but never the record MeasurementRun.Report reads. A broken recipe proof is recorded through plan.RecordFailure as it breaks, with its model, validation and cause, keeping the benchmark marker publication reads and the distinct outcomes for cells that measured nothing (inapplicable, contended, refused protocol)."
         }
       ]
     },

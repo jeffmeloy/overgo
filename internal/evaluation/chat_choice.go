@@ -2,9 +2,13 @@ package evaluation
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"unicode"
+
+	"overgo/internal/envsetting"
 )
 
 // chatChoiceRuntime is a runtime that scores multiple choice the way an
@@ -278,8 +282,23 @@ func (probe *chatProbe) judge(observation choiceObservation, letters []string, l
 	if probe.matched != 0 || (probe.judged < chatProbeCases && !last) {
 		return nil
 	}
-	return fmt.Errorf(
-		"evaluation: chat-template protocol refused: none of the first %d generated answers named a candidate; case %s answered %q, candidates %q",
-		probe.judged, probe.first.Name, probe.first.Raw, probe.letters,
+	refused := fmt.Errorf(
+		"evaluation: %w: none of the first %d generated answers named a candidate; case %s answered %q, candidates %q",
+		ErrProtocolRefused, probe.judged, probe.first.Name, probe.first.Raw, probe.letters,
 	)
+	// A validate run that awaits the refusal reads it from the file it names, so the cell is reported as one the model's
+	// output cannot serve, not as a broken measurement (ocr-domains: Unlimited-OCR's chat-template mmlu-pro failed every
+	// fill at 3a7b3877d, the OCR decoder answering " 1. The answer to the question").
+	if path := envsetting.Neutral(RefusalEnvironment, "it names the file a validate run awaits a refusal in, which changes no answer"); path != "" {
+		return errors.Join(refused, os.WriteFile(path, []byte(refused.Error()), 0o600))
+	}
+	return refused
 }
+
+// ErrProtocolRefused is the chat-template protocol's refusal of a suite whose generated answers name no candidate: the
+// model's output cannot serve the protocol, which says so seconds into the pass.
+var ErrProtocolRefused = errors.New("chat-template protocol refused")
+
+// RefusalEnvironment names the file a validate run awaits a protocol's refusal in (ErrProtocolRefused): the evaluator
+// writes the refusal's words there, and the run reports the cell as one its model's output cannot serve.
+const RefusalEnvironment = "OVERGO_EVALUATION_REFUSAL"

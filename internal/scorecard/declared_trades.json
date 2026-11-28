@@ -106,6 +106,58 @@
       "level": 0.05154639175257732,
       "unit": "word_error_rate",
       "bought": "the served path ending speech as the model's own code ends it, three frames after the end of speech is first seen (d18891dc0): 45 words heard wrongly of 873 where 44 were, one word; declared in 834e7a8e5 and 2859145eb, in commit messages alone"
+    },
+    {
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "name": "SenseNova-U1-8B-MoT-Infographic-V3",
+      "task": "image-gen",
+      "column": "load-time",
+      "contract": {
+        "metric": "load phase",
+        "origin": "serving"
+      },
+      "level": 11456.4638,
+      "unit": "ms",
+      "bought": "media-trades: guidance-ops/resident-branches (f90222c3d, 2026-11-12, the owner's direction of 2026-11-11 to keep the model loaded between pictures) keeps both SenseNova branches' 32 GB of weights on the card from load, so a 2048 x 2048 picture's prepare fell from 10.6 s to 0.7 s and each picture from 130.2 s to 120.4 s; its load uploads both branches once and its peak holds them beside the request"
+    },
+    {
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "name": "SenseNova-U1-8B-MoT-Infographic-V3",
+      "task": "image-gen",
+      "column": "peak-device-memory",
+      "contract": {
+        "metric": "peak device memory",
+        "origin": "serving"
+      },
+      "level": 32799666180,
+      "unit": "bytes",
+      "bought": "media-trades: guidance-ops/resident-branches (f90222c3d, 2026-11-12, the owner's direction of 2026-11-11 to keep the model loaded between pictures) keeps both SenseNova branches' 32 GB of weights on the card from load, so a 2048 x 2048 picture's prepare fell from 10.6 s to 0.7 s and each picture from 130.2 s to 120.4 s; its load uploads both branches once and its peak holds them beside the request"
+    },
+    {
+      "model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+      "name": "LiveEdit",
+      "task": "video-gen",
+      "column": "peak-device-memory",
+      "contract": {
+        "metric": "peak device memory",
+        "origin": "serving"
+      },
+      "level": 13046456012,
+      "unit": "bytes",
+      "bought": "media-trades: umt5-resident/device (df8875e0b, 2026-11-08) with liveedit-card-text/card (49976dc0c) encodes umT5, an 11.4 GB BF16 encoder, on the card, where on the CPU it cost about 1.4 s plus 0.065 s a token (about 4.7 s for a 50-token prompt) of every Wan and LiveEdit request before the card started; each stage gives back its memory before the next grows its own, so the peak is the encoder's stage"
+    },
+    {
+      "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "name": "Wan2.1-T2V-1.3B",
+      "task": "video-gen",
+      "column": "peak-device-memory",
+      "contract": {
+        "metric": "peak device memory",
+        "origin": "serving"
+      },
+      "level": 13108635852,
+      "unit": "bytes",
+      "bought": "media-trades: umt5-resident/device (df8875e0b, 2026-11-08) with liveedit-card-text/card (49976dc0c) encodes umT5, an 11.4 GB BF16 encoder, on the card, where on the CPU it cost about 1.4 s plus 0.065 s a token (about 4.7 s for a 50-token prompt) of every Wan and LiveEdit request before the card started; each stage gives back its memory before the next grows its own, so the peak is the encoder's stage"
     }
   ]
 }

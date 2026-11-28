@@ -3,6 +3,40 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "carried-reached",
+      "title": "A carried reading of a cell the run did not choose is no gap, its choice read from the run's record, so a change-selected run owes only the cells it chose",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A carried reading of a cell the run did not choose is no gap, its choice read from the run's record, so a change-selected run owes only the cells it chose",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestACellTheRunDidNotChooseOwesNoReading$'",
+          "files": [
+            "cmd/validate",
+            "internal/plan",
+            "internal/scorecard"
+          ],
+          "rationale": "Note: Files SQA-527 as reopened at 25d8da54e: carried-unselected marks a row unchosen by the measured models list alone, but a change-selected cycle (-reached) also leaves listed models' cells NotChosen (Plan.Chosen), as MOSS's image cell after a change confined to cmd/server, whose carried first output is then filed as unmeasured. The cells phase records the cells it chose in the run's record, and publication marks a row unchosen when the run chose none of its model's cells on its task, the list alone deciding outside a run."
+        }
+      ]
+    },
+    {
+      "id": "historical-protocol",
+      "title": "A benchmark protocol the evaluator no longer runs is read from the scorecard and never scheduled, so no cell runs twice or is credited for another's run",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A benchmark protocol the evaluator no longer runs is read from the scorecard and never scheduled, so no cell runs twice or is credited for another's run",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestAHistoricalProtocolIsReadNotRun$'",
+          "files": [
+            "cmd/validate",
+            "cmd/evaluate",
+            "internal/evaluation"
+          ],
+          "rationale": "Note: Files SQA-529: Flash-Next's scorecard keeps an MMLU-Pro reading under raw completion without demonstrations, a protocol the evaluator no longer runs; compareContracts turns that contract into a runnable cell, reacquireCommand gives it the arguments of the ordinary raw cell (demonstrations), so the 2026-11-25 run measured cells 95 and 105 alike, and cellKey's protocol lets the ordinary run earn credit for the historical cell. The historical reading stays readable and is not scheduled; credit is granted only for a protocol the evaluator ran. The MMLU-Pro selection fixture holds the three readings and the resulting evaluator arguments."
+        }
+      ]
+    },
+    {
       "id": "flashnext-projection-exact",
       "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
       "steps": [
@@ -215,42 +249,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-53dd021b2f0f0bdb",
-      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen load-time to 1063.2727 ms",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen load-time to 1063.2727 ms",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-53dd021b2f0f0bdb -target 1063.2727000000002",
-          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 514.8903 to 11456.4638 (+10941.5735, +2125.0%, allowed 548.3824; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-5445f2f69ef28413",
-      "title": "Restore LiveEdit video-gen peak-device-memory to 3.79269704e+09 bytes",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore LiveEdit video-gen peak-device-memory to 3.79269704e+09 bytes",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-5445f2f69ef28413 -target 3.792697036e+09",
-          "rationale": "- LiveEdit peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965}: 3.79269704e+09 to 1.3046456e+10 (+9.25375898e+09, +244.0%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-71e52fb3f6f58560",
-      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65883187e+10 bytes",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65883187e+10 bytes",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-71e52fb3f6f58560 -target 1.6588318724e+10",
-          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 1.65883187e+10 to 3.27996662e+10 (+1.62113475e+10, +97.7%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-7a6124fa2df88a0c",
       "title": "Restore ViTXL_n08 reconstruction load-time to 725.5973 ms",
       "steps": [
@@ -259,18 +257,6 @@
           "title": "Restore ViTXL_n08 reconstruction load-time to 725.5973 ms",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7a6124fa2df88a0c -target 725.5972999999996",
           "rationale": "- ViTXL_n08 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:41b8031ddea13d78905413c50377e4a1ec6ef7f8696d89782342de976fc2af8f}: 658.5233 to 794.3491 (+135.8258, +20.6%, allowed 67.074; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-8ce4f08cfa124419",
-      "title": "Restore Wan2.1-T2V-1.3B video-gen peak-device-memory to 3.83311892e+09 bytes",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Wan2.1-T2V-1.3B video-gen peak-device-memory to 3.83311892e+09 bytes",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8ce4f08cfa124419 -target 3.833118924e+09",
-          "rationale": "- Wan2.1-T2V-1.3B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4}: 3.83311892e+09 to 1.31086359e+10 (+9.27551693e+09, +242.0%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },

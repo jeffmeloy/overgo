@@ -433,6 +433,10 @@ type Row struct {
 	Succeeds []artifact.ID         `json:"succeeds,omitempty"`
 	// MeasuredOnce is a trained model whose one measurement finished: no run measures it again, so its readings stand.
 	MeasuredOnce bool `json:"measured_once,omitempty"`
+	// Unchosen is a model the full run's list of models it measures again leaves out (cmd/validate's
+	// docs/verification/measured_models.json): a run measures it only for its first reading, so its carried readings stand,
+	// dated, until a run is given it, and are owed none (carried-unselected, SQA-527).
+	Unchosen bool `json:"unchosen,omitempty"`
 	// Stale says why the activation behind the row cannot be trusted, or why it is not measured.
 	Stale string `json:"stale,omitzero"`
 }

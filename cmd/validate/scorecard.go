@@ -50,8 +50,9 @@ const (
 // no record measures it. With a records directory it then publishes the
 // scorecard there and prints what moved since the previous record; a serving
 // cell not measured since that record was published is printed and published
-// with its newest reading, marked carried and dated (scorecard.Record.Carry), and
-// a held-out quality whose evaluation the measurement run publishing it says
+// with its newest reading, marked carried and dated (scorecard.Record.Carry), a
+// row whose model the measured models list leaves out marked so (markUnchosen),
+// and a held-out quality whose evaluation the measurement run publishing it says
 // failed as the gap it is.
 func writeScorecard(ctx context.Context, store *overgodb.Store, root, records string, output io.Writer) error {
 	rows, err := scorecard.Build(ctx, store)
@@ -68,6 +69,9 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 		if since, published := previous[len(previous)-1].Published(); published {
 			rows = scorecard.Record{Rows: rows}.Carry(since).Rows
 		}
+	}
+	if rows, err = markUnchosen(ctx, store, root, rows); err != nil {
+		return err
 	}
 	if rows, err = withoutFailedEvaluations(rows); err != nil {
 		return err
@@ -161,6 +165,30 @@ func chosenThenBound(ctx context.Context, root string, store *overgodb.Store, re
 }
 
 func chosenModels(ctx context.Context, store *overgodb.Store, root string, registered []ModelValidation) (func(ModelValidation) bool, bool, error) {
+	names, listed, err := measuredNames(root)
+	if err != nil || !listed {
+		return nil, false, err
+	}
+	rows, err := scorecard.Build(ctx, store)
+	if err != nil {
+		return nil, false, err
+	}
+	var named []func(ModelValidation) bool
+	for _, name := range names {
+		each := namedIn(rows, name, "")
+		if !slices.ContainsFunc(registered, each) {
+			return nil, false, fmt.Errorf("%s names %q, which no registered model answers to", measuredModelsFile, name)
+		}
+		named = append(named, each)
+	}
+	return func(cell ModelValidation) bool {
+		return slices.ContainsFunc(named, func(each func(ModelValidation) bool) bool { return each(cell) })
+	}, true, nil
+}
+
+// measuredNames are the names measuredModelsFile beneath root lists, each as -model takes one, and whether the
+// checkout holds the list: without it a full run measures every model.
+func measuredNames(root string) ([]string, bool, error) {
 	var list struct {
 		Models []struct {
 			Name string `json:"name"`
@@ -171,21 +199,43 @@ func chosenModels(ctx context.Context, store *overgodb.Store, root string, regis
 	} else if err != nil {
 		return nil, false, err
 	}
-	rows, err := scorecard.Build(ctx, store)
+	names := make([]string, len(list.Models))
+	for index, model := range list.Models {
+		names[index] = model.Name
+	}
+	return names, true, nil
+}
+
+// markUnchosen marks each row whose model the measured models list beneath root leaves out (scorecard.Row.Unchosen),
+// read against the registered cells: a full run measures such a model only for its first reading, so its carried
+// readings stand dated and are owed no measurement (Plan.Chosen; carried-unselected, SQA-527). Without the list a full
+// run measures every model, and no row is marked. A name no model answers to marks nothing here: the run refuses it.
+func markUnchosen(ctx context.Context, store *overgodb.Store, root string, rows []scorecard.Row) ([]scorecard.Row, error) {
+	names, listed, err := measuredNames(root)
+	if err != nil || !listed {
+		return rows, err
+	}
+	registered, err := registeredCells(ctx, store)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	var named []func(ModelValidation) bool
-	for _, model := range list.Models {
-		each := namedIn(rows, model.Name, "")
-		if !slices.ContainsFunc(registered, each) {
-			return nil, false, fmt.Errorf("%s names %q, which no registered model answers to", measuredModelsFile, model.Name)
-		}
-		named = append(named, each)
+	return unchosen(rows, registered, names), nil
+}
+
+// unchosen is the rows with each marked Unchosen whose model none of names answers to, as -model reads a name: by the
+// name its row shows, the name of the file the catalog finds it by, or its identity.
+func unchosen(rows []scorecard.Row, registered []ModelValidation, names []string) []scorecard.Row {
+	named := make([]func(ModelValidation) bool, len(names))
+	for index, name := range names {
+		named[index] = namedIn(rows, name, "")
 	}
-	return func(cell ModelValidation) bool {
-		return slices.ContainsFunc(named, func(each func(ModelValidation) bool) bool { return each(cell) })
-	}, true, nil
+	marked := slices.Clone(rows)
+	for index := range marked {
+		row := &marked[index]
+		cells := append([]ModelValidation{{Model: row.Model}}, slices.DeleteFunc(slices.Clone(registered), func(cell ModelValidation) bool { return cell.Model != row.Model })...)
+		row.Unchosen = !slices.ContainsFunc(named, func(each func(ModelValidation) bool) bool { return slices.ContainsFunc(cells, each) })
+	}
+	return marked
 }
 
 // openGap fails while the gap key names is open on the scorecard the store

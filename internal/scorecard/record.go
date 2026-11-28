@@ -868,8 +868,13 @@ func (record Record) gaps(reference *Record, trades []Trade) []Gap {
 			case !cell.Measured() && !cell.NotApplicable:
 				add(gapUnmeasured, row, column, cell.Reason)
 			case cell.Carried:
-				// A carried reading stands in the record, and is still owed a reading of its own (Record.Carry).
-				add(gapUnmeasured, row, column, "not measured since the previous scorecard: its newest reading is of "+cell.ReadOn())
+				// A carried reading stands in the record, and is still owed a reading of its own (Record.Carry), except a
+				// reading of a model the run's list leaves out (Row.Unchosen), which stands until a run is given it:
+				// Qwen3.5-9B's six carried readings were filed as unmeasured at 3a7b3877d while the run measured
+				// Qwen3.5-4B, the model its list names for the path the two share (SQA-527).
+				if !row.Unchosen {
+					add(gapUnmeasured, row, column, "not measured since the previous scorecard: its newest reading is of "+cell.ReadOn())
+				}
 			case column == metric.Quality && cell.NotApplicable && cell.Proposed:
 				// Only a held-out evaluation still proposed is work to define; a quality
 				// declared not applicable, with its reason, is no gap.

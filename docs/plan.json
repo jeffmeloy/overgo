@@ -3,23 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "carried-unselected",
-      "title": "A carried reading of a model outside the run's selection is no gap, so the scorecard files only the measurements a run owes",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A carried reading of a model outside the run's selection is no gap, so the scorecard files only the measurements a run owes",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestACarriedReadingOutsideTheSelectionIsNoGap$'",
-          "files": [
-            "internal/scorecard",
-            "cmd/validate",
-            "cmd/loop"
-          ],
-          "rationale": "Note: Files SQA-527: Record.gaps counts every carried cell as unmeasured, so Qwen3.5-9B's six readings, carried because the run selects Qwen3.5-4B, sit in the unmeasured inference and training rows beside genuine gaps. A carried reading of a model outside the run's selection (the validator's own selection) is no gap; a selected measurement that broke or yielded nothing, and a missing metric, stay gaps. The carry fixture holds both a selected and a skipped reading."
-        }
-      ]
-    },
-    {
       "id": "proof-failure-recorded",
       "title": "A broken recipe proof is recorded in its phase as it breaks, so the measurement run's report names the cell while the others run",
       "steps": [

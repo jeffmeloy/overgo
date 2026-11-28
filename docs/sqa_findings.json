@@ -54,13 +54,13 @@
     "head": "efa59bd5922f60635af122cf728e6e1830647355",
     "findings": {
       "SQA-519": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-recipe-current/do",
           "moss-recipe-current/activate"
         ],
         "answered": "47f0c22ff388",
-        "note": "Answered by the lead on 2026-11-27 at be3e42bb3: valid, observed (the preflight at efa59bd59 refused MOSS's training-proof cell; the lead had traced it to training-identity/do's new identity before the finding, memory lessons). Filed as moss-recipe-current: do names a stranded proof's recipe, dataset and recovery at admission; activate runs the MOSS route once on the card, after the measurement run, which establishes the recipe over the media-bound dataset through the existing trainer, first of the rows."
+        "note": "Answered by the lead on 2026-11-27 at be3e42bb3: valid, observed (the preflight at efa59bd59 refused MOSS's training-proof cell; the lead had traced it to training-identity/do's new identity before the finding, memory lessons). Filed as moss-recipe-current: do names a stranded proof's recipe, dataset and recovery at admission; activate runs the MOSS route once on the card, after the measurement run, which establishes the recipe over the media-bound dataset through the existing trainer, first of the rows. Implemented 2026-11-28 by moss-recipe-current/do (46670f0aa) and /activate, the landing that carries this answer: the MOSS route ran once on the card over its committed pictures at b8fc459b5, which published, verified and activated recipe a7f5c5513e68 over the media-bound dataset (run 8f3056687837), and the preflight of MOSS's training proof alone is ready under it, for the review's recheck."
       },
       "SQA-520": {
         "action": "filed",

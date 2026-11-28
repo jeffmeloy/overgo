@@ -3,19 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-recipe-current",
-      "title": "A training proof stranded by its dataset's new identity names its recovery, and MOSS's proof is grounded again",
-      "steps": [
-        {
-          "id": "activate",
-          "title": "The MOSS route runs once over its pictures, activating the recipe over the media-bound dataset, so MOSS's training proof is grounded again",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go run ./cmd/validate -run -preflight -model model:sha256:fc5fd3cedb681bc901c4b03b9826339375bb94f7d960886833473213358f64c6 -validation training-proof -repo C:/Users/jeffm/overgo_data/overgodb-store",
-          "needs_card": true,
-          "rationale": "SQA-519's recovery, after the do step: the MOSS route runs once on the card over its committed pictures (fixtures/moss/training-pictures/pictures.tsv, -size 64, the proof's bounds), which bootstraps the recipe over the media-bound dataset, verifies it with the run and activates it, so the measurement's training-proof cell selects it and is grounded again. The card must be free of other processes; run after the measurement run at efa59bd59 ends. Needs the card though its check does not set OVERGO_CUDA_TEST.\n\nCheck: the preflight of MOSS's training-proof cell alone passes (validate -run -preflight -model MOSS's identity -validation training-proof)."
-        }
-      ]
-    },
-    {
       "id": "moss-step-time",
       "title": "A MOSS step's time is read between the completed steps of one draw, so the check measures no estimate below nothing",
       "steps": [

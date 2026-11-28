@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "proof-failure-recorded",
-      "title": "A broken recipe proof is recorded in its phase as it breaks, so the measurement run's report names the cell while the others run",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A broken recipe proof is recorded in its phase as it breaks, so the measurement run's report names the cell while the others run",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestABrokenProofIsRecordedInItsPhase$'",
-          "files": [
-            "cmd/validate",
-            "internal/plan"
-          ],
-          "rationale": "Note: Files SQA-528: settle records a failure in the phase only for a benchmark, so Flash-Next's broken projection proof at 3a7b3877d reached the run's in-memory errors and terminal error but never the record MeasurementRun.Report reads. A broken recipe proof is recorded through plan.RecordFailure as it breaks, with its model, validation and cause, keeping the benchmark marker publication reads and the distinct outcomes for cells that measured nothing (inapplicable, contended, refused protocol)."
-        }
-      ]
-    },
-    {
       "id": "flashnext-projection-exact",
       "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
       "steps": [

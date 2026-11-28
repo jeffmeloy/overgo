@@ -17,15 +17,28 @@ import (
 // run's report prints beside its failed tests.
 const evaluationFailure = "evaluation "
 
-// noteFailedEvaluation tells the measurement run under way that a benchmark failed, for its publication to read: the
-// scorecard's store holds the reading from before, and only this says that this run did not take one.
-func noteFailedEvaluation(output io.Writer, cell ModelValidation) {
+// cellFailure opens what a run's record names any other broken cell by, what it measures and its cause's first line
+// after it.
+const cellFailure = "cell "
+
+// noteFailedCell tells the measurement run under way that a cell broke, in the phase running, the moment it breaks,
+// so the run's report names it while the other cells run. A benchmark is named by its model and family, for the run's
+// publication to read: the scorecard's store holds the reading from before, and only this says that this run did not
+// take one. Any other cell is named by subject, what it measures, and the first line of its cause: Flash-Next's broken
+// projection proof at 3a7b3877d reached only the run's terminal error, its cells phase ending 2 h 43 min later with no
+// failed entry (proof-failure-recorded, SQA-528).
+func noteFailedCell(output io.Writer, cell ModelValidation, subject string, broke error) {
 	path := os.Getenv(clioptions.MeasurementRunEnvironment)
 	if path == "" {
 		return
 	}
-	if err := plan.RecordFailure(path, evaluationFailure+cell.Model.String()+" "+cell.Validation); err != nil {
-		fmt.Fprintf(output, "validate -run: the run record %s does not name %s %s: %v\n", path, cell.Model, cell.Validation, err)
+	cause, _, _ := strings.Cut(broke.Error(), "\n")
+	failed := cellFailure + subject + ": " + cause
+	if benchmark(cell) {
+		failed = evaluationFailure + cell.Model.String() + " " + cell.Validation
+	}
+	if err := plan.RecordFailure(path, failed); err != nil {
+		fmt.Fprintf(output, "validate -run: the run record %s does not name %s: %v\n", path, subject, err)
 	}
 }
 

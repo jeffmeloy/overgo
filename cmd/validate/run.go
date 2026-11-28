@@ -229,7 +229,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	acquired := 0
 	// acquiredOf counts each model's cells, which say when a trained model has had its one measurement.
 	acquiredOf := map[artifact.ID]int{}
-	record := func(subject string, err error) {
+	// record counts what became of a lane or cell, and says whether it broke: one that measured nothing as declared
+	// (inapplicable, beside other work, no larger request, a protocol its model cannot serve) or yielded did not.
+	record := func(subject string, err error) (broke bool) {
 		switch {
 		case err == nil:
 			acquired++
@@ -245,7 +247,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			unserved = append(unserved, fmt.Sprintf("%s: %v", subject, err))
 		default:
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
+			return true
 		}
+		return false
 	}
 	keep, err := resultKeeper(ctx, output, root, plan.LanesKept, len(suites) > 0)
 	if err != nil {
@@ -379,9 +383,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		}
 		subject := fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation)
 		settle := func(err error) {
-			record(subject, err)
-			if err != nil && !errors.Is(err, errInapplicable) && !errors.Is(err, errProtocolCannotServe) && benchmark(sel.ModelValidation) {
-				noteFailedEvaluation(output, sel.ModelValidation)
+			if record(subject, err) {
+				noteFailedCell(output, sel.ModelValidation, subject, err)
 			}
 			if err == nil {
 				acquiredOf[sel.Model]++

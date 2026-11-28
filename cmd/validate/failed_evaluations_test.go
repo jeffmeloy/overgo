@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
+	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/testcheck"
@@ -27,7 +29,7 @@ func TestAFailedBenchmarkReachesItsPublication(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "failed model")
 	other := testutil.ArtifactID(t, artifact.KindModel, "other model")
 	var output bytes.Buffer
-	noteFailedEvaluation(&output, ModelValidation{Model: model, Validation: "mmlu-pro"})
+	noteFailedCell(&output, ModelValidation{Model: model, Kind: recipe.TaskInference, Validation: "mmlu-pro"}, "failed model mmlu-pro", errors.New("the suite did not answer"))
 	if output.Len() != 0 {
 		t.Fatalf("recording the failure said %q", output.String())
 	}

@@ -3,22 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-projection-exact",
-      "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
-      "steps": [
-        {
-          "id": "host-accuracy",
-          "title": "An expert computed on the host is as near the reference as on the card, so Flash-Next's answer does not move with the card's free memory",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -timeout=0 -run '^TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost$'",
-          "files": [
-            "internal/hostexpert",
-            "internal/cuda/executor"
-          ],
-          "rationale": "Measured at 1251fe747 by TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost on one routed layer of each of Flash-Next's formats, 64 tokens' 128 rows: with every expert on the card the output stands 0.0009 to 0.0014 from the f32 reference at most; with expert 0 on the card and the rest on the host it stands 0.056 to 0.074 (iq4_xs-iq4_nl 0.0564, fused 0.0580, iq3_s-iq4_nl 0.0739, iq4_xs-q8_0 0.0573), sixty times farther, from the host quantizing each token's activations as Q8_K and each expert's intermediate as Q8_0, as llama.cpp's CPU backend does. So the host is the inexact side, and the card quantizing as the host does (choice a) would make every answer worse to make two agree: the decision is that an expert computed on the host is computed as near the reference as the card computes it, within twice the card's difference, and its cost in the host's expert time on Flash-Next's decode is read before and after (TestFlashNextDecodeRoundIsStratas' rate, the hosted experts' share). Bit-for-bit agreement of a card and a CPU is no aim: their accumulation orders differ. First read internal/hostexpert's rows and the formats' vec-dot types.\n\nCheck: TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost on the card.\n\nNote: files set to internal/hostexpert, internal/cuda/executor: the host's expert arithmetic and the check that holds it to the card's"
-        }
-      ]
-    },
-    {
       "id": "carried-unselected",
       "title": "A carried reading of a model outside the run's selection is no gap, so the scorecard files only the measurements a run owes",
       "steps": [
@@ -48,6 +32,22 @@
             "internal/plan"
           ],
           "rationale": "Note: Files SQA-528: settle records a failure in the phase only for a benchmark, so Flash-Next's broken projection proof at 3a7b3877d reached the run's in-memory errors and terminal error but never the record MeasurementRun.Report reads. A broken recipe proof is recorded through plan.RecordFailure as it breaks, with its model, validation and cause, keeping the benchmark marker publication reads and the distinct outcomes for cells that measured nothing (inapplicable, contended, refused protocol)."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-projection-exact",
+      "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
+      "steps": [
+        {
+          "id": "host-accuracy",
+          "title": "An expert computed on the host is as near the reference as on the card, so Flash-Next's answer does not move with the card's free memory",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -timeout=0 -run '^TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost$'",
+          "files": [
+            "internal/hostexpert",
+            "internal/cuda/executor"
+          ],
+          "rationale": "Measured at 1251fe747 by TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost on one routed layer of each of Flash-Next's formats, 64 tokens' 128 rows: with every expert on the card the output stands 0.0009 to 0.0014 from the f32 reference at most; with expert 0 on the card and the rest on the host it stands 0.056 to 0.074 (iq4_xs-iq4_nl 0.0564, fused 0.0580, iq3_s-iq4_nl 0.0739, iq4_xs-q8_0 0.0573), sixty times farther, from the host quantizing each token's activations as Q8_K and each expert's intermediate as Q8_0, as llama.cpp's CPU backend does. So the host is the inexact side, and the card quantizing as the host does (choice a) would make every answer worse to make two agree: the decision is that an expert computed on the host is computed as near the reference as the card computes it, within twice the card's difference, and its cost in the host's expert time on Flash-Next's decode is read before and after (TestFlashNextDecodeRoundIsStratas' rate, the hosted experts' share). Bit-for-bit agreement of a card and a CPU is no aim: their accumulation orders differ. First read internal/hostexpert's rows and the formats' vec-dot types.\n\nCheck: TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost on the card.\n\nNote: files set to internal/hostexpert, internal/cuda/executor: the host's expert arithmetic and the check that holds it to the card's"
         }
       ]
     },
@@ -224,18 +224,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-22b33dd45488870f",
-      "title": "Restore MiniCPM5-1B inference throughput to 7859.49029 tok/s",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore MiniCPM5-1B inference throughput to 7859.49029 tok/s",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-22b33dd45488870f -target 7859.490293575815",
-          "rationale": "- MiniCPM5-1B throughput, {Metric:output tokens over decode time, a request again on a loaded model Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0361f2ddfc1eae3df570de4af0fccf9e3f6b3c89d88d4bfe01954d0e1668aa1d}: 8764.77688 to 355.015144 (-8409.76174, -95.9%, allowed 905.28659; serving output tokens over decode time, a request again on a loaded model, the median of the newest attempts); measured under recipe:sha256:0361f2ddfc1eae3df570de4af0fccf9e3f6b3c89d88d4bfe01954d0e1668aa1d, the reference under recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c; run under policy profile:sha256:cda9872a5b30cdc01766181fe0400a67ccab7a3f13c6634206443685b4ebb62a, the reference under ; 2 earlier readings on its contract, fewer than the 5 that say what it holds and how far it moves, so it is allowed the 0.103 of its value that the median of its column's 4 judged throughput cells is\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-2af660c27dcb3d51",
       "title": "Restore Un-0 video-gen first-output to 40.7009 ms",
       "steps": [
@@ -244,18 +232,6 @@
           "title": "Restore Un-0 video-gen first-output to 40.7009 ms",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-2af660c27dcb3d51 -target 40.700900000000004",
           "rationale": "- Un-0 first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e}: 28.4897 to 47.1161 (+18.6264, +65.4%, allowed 12.2112; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-40c447bf2908d51d",
-      "title": "Restore Qwen2.5-0.5B inference throughput to 8822.22067 tok/s",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen2.5-0.5B inference throughput to 8822.22067 tok/s",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-40c447bf2908d51d -target 8822.220674917911",
-          "rationale": "- Qwen2.5-0.5B throughput, {Metric:output tokens over decode time, a request again on a loaded model Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:1a0b06838824501ec4adb6ac211323778a1138298e59fb82b03d725de69dff67}: 9838.39829 to 533.881229 (-9304.51706, -94.6%, allowed 1016.17761; serving output tokens over decode time, a request again on a loaded model, the median of the newest attempts); measured under recipe:sha256:1a0b06838824501ec4adb6ac211323778a1138298e59fb82b03d725de69dff67, the reference under recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca; run under policy profile:sha256:6320d63c961f68caaf33d1af080618324414d7b61ad824ca05493b35f80cb750, the reference under ; 2 earlier readings on its contract, fewer than the 5 that say what it holds and how far it moves, so it is allowed the 0.103 of its value that the median of its column's 4 judged throughput cells is\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },

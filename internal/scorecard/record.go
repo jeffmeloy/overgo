@@ -432,6 +432,27 @@ func Earlier(records []Record) *Record {
 	for index := range reference.Rows {
 		row := &reference.Rows[index]
 		row.Heldout = slices.DeleteFunc(row.Heldout, func(cell Cell) bool { return cell.Contract == row.Cells[metric.Quality].Contract })
+		// A measure is read once, by its newest reading: a longer prompt's or a warm request's reading that the row's own
+		// cell of its column also measures is one measure read twice, as when the model a row replaced read its warm
+		// request in its list and the row reads it in its own cell. MiniCPM5-1B's and Qwen2.5-0.5B's throughput, about
+		// 355 and 534 tok/s since 2026-11-07, were filed at 3a7b3877d as 96% and 95% declines from the 8765 and 9838 tok/s
+		// their predecessors read on 2026-10-31, from requests that ended at their first token (reference-newest).
+		for _, listed := range []struct {
+			cells  *[]Cell
+			column func(Cell) metric.Name
+		}{{&row.Lengths, lengthColumn}, {&row.Warm, warmColumn}} {
+			*listed.cells = slices.DeleteFunc(*listed.cells, func(cell Cell) bool {
+				column := listed.column(cell)
+				own := row.Cells[column]
+				if !own.Measured() || !own.Contract.measures(cell.Contract) {
+					return false
+				}
+				if cell.Newest > own.Newest {
+					row.Cells[column] = cell
+				}
+				return true
+			})
+		}
 	}
 	return &reference
 }

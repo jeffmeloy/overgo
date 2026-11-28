@@ -46,7 +46,7 @@ func trainTabular(ctx context.Context, flags *flag.FlagSet, args []string) error
 	out := flags.String("out", "", "directory the trained decoder's checkpoint publishes to")
 	recipeText := flags.String("recipe", "", "training recipe artifact ID to train under; omitted trains under the objective's own")
 	proof := flags.Bool("proof", false, "re-verify the recipe by the training run alone, judging no head and publishing no held-out verdict")
-	if err := flags.Parse(args); err != nil {
+	if err := parseProving(flags, args, proof); err != nil {
 		return err
 	}
 	if err := dataroot.ResolveStore(storePath); err != nil {

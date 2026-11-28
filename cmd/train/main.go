@@ -114,6 +114,9 @@ func run() error {
 			return fmt.Errorf("train: -proof re-verifies a recipe by a training run alone, under -objective or the dense workflow's -recipe; it goes with no other mode and no audio manifest")
 		}
 	}
+	if err := provable(*proof); err != nil {
+		return err
+	}
 	lora := loraRequest(loraFlags{Rank: *loraRank, Alpha: *loraAlpha, Targets: *loraTargets, Seed: *loraSeed, From: *loraFrom, RSLoRA: *loraRSLoRA, Plus: *loraPlus, Quantized: *loraQuantized})
 	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0 || *loraRSLoRA || *loraPlus != 0 || *loraQuantized) {
 		return fmt.Errorf("train: -lora-alpha, -lora-targets, -lora-seed, -lora-rslora, -lora-plus and -lora-quantized shape an adapter; they need -lora-rank or -lora-from")

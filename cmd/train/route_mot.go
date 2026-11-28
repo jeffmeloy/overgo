@@ -89,7 +89,7 @@ func trainMot(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	stimulus := flags.String("stimulus", "docs/verification/rxbrain-mot-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	out := flags.String("out", "", "directory the trained vision fork's checkpoint publishes to")
 	proof := proofFlag(flags)
-	if err := flags.Parse(args); err != nil {
+	if err := parseProving(flags, args, proof); err != nil {
 		return err
 	}
 	if err := dataroot.ResolveStore(storePath); err != nil {

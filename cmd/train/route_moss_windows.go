@@ -187,7 +187,7 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 	heldout := flags.String("heldout", "", "optional manifest of pictures the run never trains on, judged on fixed paths before and after it")
 	report := flags.String("report", "", "with -heldout: the file its reading is written to")
 	proof := proofFlag(flags)
-	if err := flags.Parse(args); err != nil {
+	if err := parseProving(flags, args, proof); err != nil {
 		return err
 	}
 	if err := dataroot.ResolveStore(storePath); err != nil {

@@ -109,7 +109,7 @@ func trainHybridStack(ctx context.Context, flags *flag.FlagSet, args []string) (
 	lane := flags.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
 	roundTrip := flags.Bool("serving-roundtrip", false, "after training, requantize layer 0's mlp gate masters to their declared serving dtype and re-evaluate the objective through the round trip")
 	proof := proofFlag(flags)
-	if err := flags.Parse(args); err != nil {
+	if err := parseProving(flags, args, proof); err != nil {
 		return err
 	}
 	if err := dataroot.ResolveStore(storePath); err != nil {

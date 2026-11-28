@@ -100,7 +100,7 @@ func trainCodec(ctx context.Context, flags *flag.FlagSet, args []string) (err er
 	pairOut := flags.String("pair-out", "", "optional directory, beside the encoder and the collection, to write the trained bridge to as a pair of its own")
 	recipeText := flags.String("recipe", "", "with -objective, the training recipe artifact ID to train under; omitted trains under the objective's own")
 	proof := flags.Bool("proof", false, "with -objective, re-verify the recipe by the training run alone: it reads tokens for the pictures its steps take and keeps none, so it takes no -cache, judges no bridge and publishes no held-out verdict")
-	if err := flags.Parse(args); err != nil {
+	if err := parseProving(flags, args, proof); err != nil {
 		return err
 	}
 	if err := dataroot.ResolveStore(storePath); err != nil {

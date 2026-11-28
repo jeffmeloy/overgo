@@ -211,7 +211,7 @@ func trainDiT(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	vidgenRoot := flags.String("vidgen-root", "", "VidGen corpus directory; set to train on real VAE-encoded captioned clips instead of fixture latents")
 	clipCount := flags.Int("clips", 4, "captioned clips to train over when -vidgen-root is set")
 	proof := proofFlag(flags)
-	if err := flags.Parse(args); err != nil {
+	if err := parseProving(flags, args, proof); err != nil {
 		return err
 	}
 	if err := dataroot.ResolveStore(storePath); err != nil {

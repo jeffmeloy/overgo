@@ -63,6 +63,10 @@ const (
 	// a command built apart agree on nothing but the name.
 	childLeavesNoCheckpoint = "no checkpoint"
 	rewardStepsVariable     = "OVERGO_TRAIN_REWARD_STEPS"
+	// childUnrevisioned runs the command's own main as a build whose code revision cannot be named, as one from a
+	// modified tree, giving unrevisionedReason.
+	childUnrevisioned  = "unrevisioned"
+	unrevisionedReason = "the stand-in command's tree has uncommitted changes"
 )
 
 // TestMain runs the tests, or, in a child a test started as the training
@@ -89,6 +93,8 @@ func TestMain(m *testing.M) {
 	case childStandIn:
 		fmt.Fprintln(os.Stderr, childStartedLine)
 		denseDevice = stepsOnNoGradient
+	case childUnrevisioned:
+		codeRevision = func(string) (string, error) { return "", errors.New(unrevisionedReason) }
 	}
 	main()
 	// main returns only when the command succeeded.

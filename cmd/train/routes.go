@@ -48,7 +48,7 @@ func provable(proof bool) error {
 	switch {
 	case err == nil:
 		return nil
-	case os.Getenv(clioptions.PreflightEnvironment) != "" || os.Getenv(trainingworkflow.VerificationOutputEnvironment) != "":
+	case clioptions.Preflighting() || os.Getenv(trainingworkflow.VerificationOutputEnvironment) != "":
 		return fmt.Errorf("-proof verifies its recipe under the code revision the run executes, and this run can name none: %w", err)
 	}
 	fmt.Printf("train: this -proof run will verify no recipe, since it can name no code revision: %v\n", err)

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"bytes"
 	"maps"
 	"os"
 	"path/filepath"
@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 // TestTrainRoutesFoldedProbes holds each route, one subtest by its name, to
@@ -62,28 +64,33 @@ func TestTrainRoutesEveryProbe(t *testing.T) {
 }
 
 // TestAProofThatCannotVerifyIsRefusedFirst holds a -proof run the validator awaits to the verification it exists for
-// (SQA-522): where the run can name no code revision for its verification to bind, every route that takes -proof is
-// refused with that reason once its flags are read, under the validator's preflight, before anything else, so no
-// admission says it is ready and no card is used. A -proof run from a modified tree had prepared and trained on the
-// card, then printed that it verified nothing and exited 0. A -proof run by hand is told and goes on, and a run without
-// -proof is not asked for a revision.
+// (SQA-522): the training command, run as validate runs it, whose build can name no code revision for its verification
+// to bind, is refused with that reason under the validator's preflight, for the dense workflow and every route that
+// takes -proof, before its admission says it is ready, so no preflight counts the proof ready and no card is used. The
+// command's main reads and clears the preflight's variable before a route runs, and a check reading the variable had
+// seen it empty and only warned (SQA-522 reopened); before that, a -proof run from a modified tree prepared and trained
+// on the card, then printed that it verified nothing and exited 0. A -proof run by hand is told and goes on.
 func TestAProofThatCannotVerifyIsRefusedFirst(t *testing.T) {
-	// Serial: it replaces the code revision every route reads and sets the validator's preflight.
-	prior := codeRevision
-	codeRevision = func(string) (string, error) { return "", errors.New("the tree has uncommitted changes") }
-	t.Cleanup(func() { codeRevision = prior })
-	routes := []string{"dit", "mot", "codec", "tabular"}
-	for _, route := range routes {
-		for _, args := range [][]string{{route, "-proof"}, {route}} {
-			if err := runRoute(t.Context(), args); err != nil && strings.Contains(err.Error(), "uncommitted") {
-				t.Errorf("%v by hand was refused for its code revision: %v; want it told and gone on", args, err)
-			}
+	// Serial: the training command runs as a child under the environment this sets.
+	t.Setenv(commandChildEnvironment, childUnrevisioned)
+	command := func(preflight bool, arguments ...string) (printed, refusal string) {
+		t.Helper()
+		var out bytes.Buffer
+		written := filepath.Join(t.TempDir(), "error.txt")
+		environment := append(os.Environ(), clioptions.ErrorFileEnvironment+"="+written)
+		if preflight {
+			environment = append(environment, clioptions.PreflightEnvironment+"=1")
 		}
+		testcheck.Must(processcontrol.Run(t.Context(), processcontrol.Command{Path: os.Args[0], Args: arguments, Stdout: &out, Env: environment}))(t)
+		refused, _ := os.ReadFile(written)
+		return out.String(), string(refused)
 	}
-	t.Setenv(clioptions.PreflightEnvironment, "1")
-	for _, route := range routes {
-		if err := runRoute(t.Context(), []string{route, "-proof"}); err == nil || !strings.Contains(err.Error(), "the tree has uncommitted changes") {
-			t.Errorf("a %s proof the validator awaits, which can name no code revision, ended as %v; want it refused with the revision's reason first", route, err)
+	for _, arguments := range [][]string{{"-proof"}, {"-route", "dit", "-proof"}, {"-route", "mot", "-proof"}, {"-route", "codec", "-proof"}, {"-route", "tabular", "-proof"}} {
+		if _, refusal := command(true, arguments...); !strings.Contains(refusal, unrevisionedReason) {
+			t.Errorf("train %v under the validator's preflight, which can name no code revision, wrote %q; want it refused with the revision's reason", arguments, refusal)
+		}
+		if printed, refusal := command(false, arguments...); strings.Contains(refusal, unrevisionedReason) || !strings.Contains(printed, "will verify no recipe") {
+			t.Errorf("train %v by hand printed %q and wrote %q; want it told it will verify no recipe and refused for nothing of that", arguments, printed, refusal)
 		}
 	}
 }

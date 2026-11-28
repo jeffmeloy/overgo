@@ -43,10 +43,10 @@
       "SQA-522": {
         "action": "implemented",
         "rows": [
-          "proof-revision/do"
+          "proof-preflight/do"
         ],
-        "answered": "57846ae91e39",
-        "note": "Answered by the lead on 2026-11-28 at 5b8dbb6fc: valid, observed by the lead at c0f0b56d3 (a -proof run from a checkout holding the next row's test trained on the card, then printed that it verified nothing and exited 0). Filed as proof-revision/do: a run given -proof asks for its code revision right after its flags are parsed, before admission says it is ready or the card is used. Implemented 2026-11-28 by proof-revision/do, the landing that carries this answer: a -proof run the validator awaits (its preflight, OVERGO_PREFLIGHT, or its acquisition, OVERGO_TRAIN_VERIFICATION) asks for its code revision once its flags are read and is refused with that reason before admission says it is ready or the card is used; a -proof run by hand is told before it starts and trains as before, since the gate's own candidate checkout is a modified tree its tests run proofs in (TestAProofThatCannotVerifyIsRefusedFirst), for the review's recheck."
+        "answered": "5f9c5d25c678",
+        "note": "Answered again by the lead on 2026-11-28 at 68b6355ae, for the finding as reopened after 2004b4702: valid from source, the lead's cure falling short (provable read OVERGO_PREFLIGHT after clioptions.Main had cleared it, so the preflight only warned and counted the proof ready; its test bypassed Main). Filed and implemented by proof-preflight/do, the landing that carries this answer: provable reads clioptions.Preflighting, and TestAProofThatCannotVerifyIsRefusedFirst runs the training command as a child under its own main, refused under the preflight for the dense workflow and each route and told by hand, for the review's recheck."
       },
       "SQA-523": {
         "action": "implemented",

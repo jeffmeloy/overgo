@@ -181,6 +181,13 @@
       "holds": "the picture a served request returns for a prompt, a seed, a size, a number of steps, a guidance scale and a timestep shift to the picture the model's own code, the text-to-image example of the package shipped beside its weights, draws for the same: two pictures at 640 by 640 in 8 steps, over 8-pixel squares, where the model's own picture at another timestep shift, without guidance or from another seed stands 17 dB or more further off. The size is one where the model's own picture is steady. At its recommended 2048 by 2048 in 50 steps, which the row's reading is drawn at, moving one value in a thousand of the model's starting noise by one step moves its own picture to 24 dB from itself, and the served picture stands 21 dB from it: by eye the same poster with other lettering, which no comparison of squares can tell from the model's own"
     },
     {
+      "model": "MOSS-Image-SFT-797fa8e678b4f",
+      "task": "image-gen",
+      "package": "internal/latentimage",
+      "test": "TestMOSSGenerationCheckpoint",
+      "holds": "the generation a request's prompt, negative prompt, size, steps and seed draw through the model's generator (LoadGenerator) to the model's own pipeline, pipeline_moss_image.py of the checkpoint's repository, on three whole pictures, an English prompt and a layout one at 1024 by 1024 and a Chinese one at 1024 by 768: its conditioning, each of the 50 flow steps' latents and velocity, the guided predictions and the decoded pixels, each boundary within the tolerance its reference contract declares and the token ids exactly, drawn twice so the repeat gives the same bits; the served request's parsing into the generator's request is not compared"
+    },
+    {
       "model": "SimpleDiffusion-TensorProductAttentionRope",
       "task": "image-gen",
       "package": "internal/adaptiveparity",

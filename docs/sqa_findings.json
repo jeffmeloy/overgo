@@ -36,7 +36,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-28",
-    "head": "a9bf8be8b0e3da52344ca826c85e8af0432b3edc",
+    "head": "06585ae0fd83fa567ffd517143be0e43febfd045",
     "findings": {
       "SQA-527": {
         "action": "implemented",
@@ -55,12 +55,12 @@
         "note": "Answered by the lead on 2026-11-28: implemented by historical-protocol/do (11b3d9f0d). A held-out contract whose protocol evaluate no longer names (evaluation.PromptingNamed) schedules no cell; its reading stays in the scorecard, compared as before, and each scheduled protocol runs with arguments of its own, so its credit is for the run that measured it (TestAHistoricalProtocolIsReadNotRun on the MMLU-Pro selection fixture with Flash-Next's three readings)."
       },
       "SQA-530": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "failed-protocol/do"
         ],
         "answered": "c777afb41903",
-        "note": "Answered by the lead on 2026-11-28 at 930b0a1ac: valid from source (noteFailedCell names a benchmark failure by model and family, so one protocol's failure blanks the model's readings of the family under every protocol). Filed as failed-protocol, after run-record-chosen: the failure carries the cell's bound protocol and is matched to each reading's contract protocol, an older family-only record still matching the family."
+        "note": "Answered by the lead on 2026-11-28: implemented by failed-protocol/do (06585ae0f). A benchmark failure carries the protocol its cell was bound to, and the publication matches it to each reading's contract protocol (NotEvaluated reads the whole contract); a failure named by family alone, as a record from before names one, still covers the family (TestAFailedProtocolHidesNoOtherProtocolsReading, with Flash-Next's raw, chat-template and historical MMLU-Pro readings)."
       }
     }
   },

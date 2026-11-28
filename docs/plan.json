@@ -3,26 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-uncompared-image-gen-20261128t121402z",
-      "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-gen",
-          "files": [
-            "cmd",
-            "internal",
-            "docs",
-            "fixtures",
-            "scripts",
-            "kernels"
-          ],
-          "rationale": "Note: - MOSS-Image-SFT-797fa8e678b4f held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unscored-projection-20261128t121402z",
       "title": "Define the held-out evaluation that measures projection quality",
       "steps": [

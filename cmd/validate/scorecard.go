@@ -106,6 +106,23 @@ func lastRecord(storeRoot string) (*scorecard.Record, error) {
 	return &published[len(published)-1], nil
 }
 
+// reachedFrom is the record a run's cells are reached from (reachedCells): the newest published of a commit other than
+// head, never head's own. A cycle whose cells failed publishes all the same, and its retry at the commit had reached its
+// cells from that partial record, found nothing changed, and measured no cell, the one that failed among them, while
+// its cells phase passed (SQA-524). Nil when no other commit's record is published.
+func reachedFrom(storeRoot, head string) (*scorecard.Record, error) {
+	published, err := scorecard.Records(scorecard.Directory(storeRoot))
+	if err != nil {
+		return nil, err
+	}
+	for index := len(published) - 1; index >= 0; index-- {
+		if published[index].Commit != head {
+			return &published[index], nil
+		}
+	}
+	return nil, nil
+}
+
 // modelNamed answers whether a cell is of the model name names: by the name its scorecard row shows, which a decline's
 // row carries in its title, the name of the file the catalog finds it by, or its identity; and, when validation is
 // given, whether it is a cell of that validation, the one a decline's metric is read from.

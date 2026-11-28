@@ -352,7 +352,15 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		plan = plan.Chosen(chosen, compared)
 	}
 	if *reached {
-		chosen, err := reachedCells(ctx, *root, compared, registered)
+		head, err := gitauthority.Query(ctx, *root, "rev-parse", "HEAD")
+		if err != nil {
+			return err
+		}
+		from, err := reachedFrom(storeRoot, strings.TrimSpace(string(head)))
+		if err != nil {
+			return err
+		}
+		chosen, err := reachedCells(ctx, *root, from, registered)
 		if err != nil {
 			return err
 		}

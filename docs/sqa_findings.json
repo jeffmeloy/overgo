@@ -1,64 +1,63 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "Master landed measure-reached/do and proof-revision/do. With no implementation rows left, the measurement at 2004b4702 passed preflight in 11 min 4 s and entered the longer tests. I would keep its results and take SQA-523 first. Losing a valid package pass when an optional probe skips can still stop the cycle before any MOSS cell is measured. The previous 7 h 35 min in the longer tests is a baseline; this run has yet to establish a saving.",
-    "I would keep SQA-522 second. Acquisition now rejects an unverifiable revision before training. Preflight still reports ready for that same input because it reads a flag the command has already consumed. Using the preflight state that Ready already trusts would align the two verdicts. The check can exercise command initialization without running the model."
+    "I would let the measurement at 3a7b3877d finish. The longer tests passed in 4 min 59 s and the run reached the model measurements. The comparable MOSS section timings are still due.",
+    "I rank SQA-524 first because a retry can report success while omitting the measurement that failed. SQA-525 comes next because every full run repeats file hashing during setup. Both fit the existing measurement runner."
   ],
   "branch": "master",
   "findings": [
     {
-      "id": "SQA-523",
+      "id": "SQA-524",
       "severity": "P2",
       "files": [
-        "cmd/validate/test_steps.go",
+        "cmd/loop/improve.go",
+        "cmd/validate/main.go",
+        "cmd/validate/reach.go",
+        "cmd/validate/selection.go",
         "cmd/validate/run.go",
-        "cmd/validate/lane_reach.go",
-        "cmd/validate/test_steps_test.go",
-        "cmd/loop/improve.go"
+        "cmd/validate/scorecard.go"
       ],
-      "input": "Run the models lane with -reached when all applicable tests in internal/mediacapability have current passes and its only remaining test is TestMediaStagePeaksAreRecorded. With OVERGO_PROBE_TEST unset it declares itself inapplicable. The retained results at 2004b4702 include a pass for the sibling TestStagePeaksCoverEveryMediaFamily.",
-      "expected": "A valid retained pass should count for its own package exactly as a fresh pass would. Carry that fact from testSteps into laneVerdict. Keep failures blocking, packages with exclusions alone inapplicable, and passes confined to their package. The existing package-verdict fixture covers these distinctions and can also use a retained pass.",
-      "actual": "Source counterexample at 2004b4702. testSteps drops each current pass and returns one count for the entire lane. laneVerdict sees only the optional probe's exclusion, judges its package inapplicable, and validate returns an error. measurePhases then stops before cells. Running the package whole passes under the same inputs. The same case fits the existing passes fixture when TestPasses is current and TestElsewhere skips. The current full run had no final lane verdict at review time."
+      "input": "A change reaches two selected measurements of a previously measured, untrained model. One succeeds and earns credit. The other fails transiently. The cycle publishes the partial scorecard, which holds a valid reading for that model and task. Interrupt before background fill clears the cycle state, then resume the same commit with unchanged obligations and the transient fault gone.",
+      "expected": "Keep the successful cell's credit and retry the failed cell before marking the cells phase passed. The measurement runner can keep the original comparison commit for reach selection on resume. Keep the partial publication available while recovery is pending.",
+      "actual": "Source counterexample at 3a7b3877d. measurePhases records cells=false and publishes at the current commit. On retry, lastRecord selects that partial publication. reachedCells compares the commit with itself and selects nothing. Plan.Chosen drops the failed cell because readBefore accepts any valid reading for its model and task. executeMeasured returns success on an empty selection, so the runner can mark cells passed and republish without retrying the failure. The active run had reached its cells when reviewed. This failure was not observed in that run."
     },
     {
-      "id": "SQA-522",
+      "id": "SQA-525",
       "severity": "P2",
       "files": [
-        "cmd/train/routes.go",
-        "internal/clioptions/command.go",
-        "cmd/train/main.go",
-        "cmd/train/routes_test.go",
-        "cmd/validate/run.go",
-        "internal/trainingworkflow/session_observation.go"
+        "cmd/loop/improve.go",
+        "cmd/validate/bound_records.go",
+        "cmd/validate/cell_credit.go",
+        "cmd/validate/run_digests_test.go"
       ],
-      "input": "Validate only the MOSS training proof with valid pictures, model and recipe, using a trainer whose executable revision cannot be verified. The normal preflight sets OVERGO_PREFLIGHT=1. Only the later acquisition sets OVERGO_TRAIN_VERIFICATION.",
-      "expected": "Have provable use clioptions.Preflighting(), the state Ready uses, to return the revision error before admission. Exercise the existing refusal check through command initialization. Keep the acquisition check and the intended warning for a proof run by hand.",
-      "actual": "Source counterexample at 2004b4702. clioptions.Main reads and clears OVERGO_PREFLIGHT before running train. provable rereads the now-empty variable and only warns. Observer.Admit then calls Ready, so the process exits successfully and validate counts the proof as ready. Acquisition sees its handoff variable and correctly refuses before GPU work. TestAProofThatCannotVerifyIsRefusedFirst sets the environment and calls runRoute directly, bypassing Main. The earlier 2 min 17 s of preparation plus three training steps were observed before this change."
+      "input": "Start a recorded full measurement with OVERGO_MEASUREMENT_RUN initially unset in the parent. A runnable cell has an unchanged, readable model file. The dry run and preflight bind it, and background validation binds it again if the cycle reaches fill.",
+      "expected": "Pass the existing run recorder's environment to the dry run and the background validator. Each unchanged file then needs one successful content hash per started run. Keep the fresh binding on a new run and retry files that could not be hashed.",
+      "actual": "Source counterexample at 3a7b3877d. measureScorecard starts the dry run with no recorder environment. bindCells hashes the file and keepDigests discards the result. Preflight hashes it again. Background fill passes only cycle credit and hashes it a third time. TestARunHashesEachModelFileOnce sets the environment itself and misses both callers. The active run recorded 311 digest paths totaling 233,832,564,810 bytes by file size. Repeat-read time and physical disk traffic were not measured."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-27",
     "head": "efa59bd5922f60635af122cf728e6e1830647355",
     "findings": {
-      "SQA-522": {
-        "action": "implemented",
+      "SQA-524": {
+        "action": "filed",
         "rows": [
-          "proof-preflight/do"
+          "cells-retry/reach"
         ],
-        "answered": "5f9c5d25c678",
-        "note": "Answered again by the lead on 2026-11-28 at 68b6355ae, for the finding as reopened after 2004b4702: valid from source, the lead's cure falling short (provable read OVERGO_PREFLIGHT after clioptions.Main had cleared it, so the preflight only warned and counted the proof ready; its test bypassed Main). Filed and implemented by proof-preflight/do, the landing that carries this answer: provable reads clioptions.Preflighting, and TestAProofThatCannotVerifyIsRefusedFirst runs the training command as a child under its own main, refused under the preflight for the dense workflow and each route and told by hand, for the review's recheck."
+        "answered": "e2c10fadb6c6",
+        "note": "Answered by the lead on 2026-11-28 at 3a7b3877d: valid from source, a phase that passes without measuring (a retry reaches its cells from the partial publication at its own commit, so the failed cell is selected by nothing and the cells phase is recorded passed). Not observed. Filed as cells-retry/reach, first: a commit's cells are reached from the newest record of an earlier commit, never its own, so a retry reaches the cells its first attempt did."
       },
-      "SQA-523": {
-        "action": "implemented",
+      "SQA-525": {
+        "action": "filed",
         "rows": [
-          "lanes-kept-pass/do"
+          "hash-once/do"
         ],
-        "answered": "db8c1fa39f05",
-        "note": "Answered by the lead on 2026-11-28 at 2004b4702: valid from source, a verdict that ends the measurement before its cells on a package that passes (testSteps counted the tests it left out for the lane alone, so a package left with its optional probes was inapplicable). Filed and implemented 2026-11-28 by lanes-kept-pass/do, the landing that carries this answer: testSteps counts what it leaves out by package, and laneVerdict counts a package with a test left out as current as holding that pass (TestAPackageWhosePassIsKeptPassesBesideItsProbes), for the review's recheck."
+        "answered": "5fa96c0f4365",
+        "note": "Answered by the lead on 2026-11-28 at 3a7b3877d: valid from source, a cost every full run pays (the dry run and the fill hash every model file again beside the preflight, 311 paths and 233.8 GB by size at 3a7b3877d). Filed as hash-once/do: both are given the run record's environment, as the phases are."
       }
     }
   },
-  "next_finding_number": 524,
+  "next_finding_number": 526,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

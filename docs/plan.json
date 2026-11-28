@@ -3,23 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "run-record-chosen",
-      "title": "The loop keeps the cells phase's recorded choice through its own record writes and a credited restart, so publication reads the choice the cells phase made",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The loop keeps the cells phase's recorded choice through its own record writes and a credited restart, so publication reads the choice the cells phase made",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestPublicationReadsTheCellsPhasesChoice$'",
-          "files": [
-            "cmd/loop",
-            "internal/plan",
-            "cmd/validate"
-          ],
-          "rationale": "Note: Files SQA-527 as reopened at c87ae04a3: plan.RecordChosen writes the cells phase's choice, [] included, but on the phase's exit cmd/loop's runRecorder.write merges the child's digests, failures and packages into its in-memory record and rewrites the file without Chosen (chosen: null), so publication's runChoice falls back to the list and files MOSS's carried reading as owed; and a restart at publication after the cells phase earned credit begins a fresh record, cycleState crediting the cells with a boolean. The loop's writes keep the child's Chosen, a credited cells phase's choice is kept with its credit, and cmd/loop's measurePhases fixture carries the handoff through publication."
-        }
-      ]
-    },
-    {
       "id": "failed-protocol",
       "title": "A benchmark failure is recorded under its protocol, so a failed chat-template evaluation hides no other protocol's reading",
       "steps": [

@@ -145,10 +145,36 @@ func (r *runRecorder) write() {
 		for at := range min(len(kept.Phases), len(r.run.Phases)) {
 			r.run.Phases[at].Failed, r.run.Phases[at].Packages = kept.Phases[at].Failed, kept.Phases[at].Packages
 		}
+		// The choice the cells phase kept (plan.RecordChosen) is kept with them: rewritten without it, the publication
+		// read none and fell back to the list (run-record-chosen, SQA-527).
+		if kept.Chosen != nil {
+			r.run.Chosen = kept.Chosen
+		}
 	}
 	if processlock.EnsureStateDirectory(r.root) == nil {
 		_ = jsonfile.Write(plan.MeasurementRunPath(r.root), r.run, cycleStateMode)
 	}
+}
+
+// chosen is the choice the run's cells phase kept in its record, nil where it kept none.
+func (r *runRecorder) chosen() []string {
+	if r == nil {
+		return nil
+	}
+	if kept, read := plan.ReadMeasurementRun(r.root); read && kept.Started.Equal(r.run.Started) {
+		return kept.Chosen
+	}
+	return nil
+}
+
+// choose keeps in the run's record the choice a credited cells phase made in an earlier run of the key, for its
+// publication to read.
+func (r *runRecorder) choose(chosen []string) {
+	if r == nil || chosen == nil {
+		return
+	}
+	r.run.Chosen = chosen
+	r.write()
 }
 
 // movedSince is the commit of the newest scorecard published and how many commits since it
@@ -457,6 +483,9 @@ type cycleState struct {
 	Lanes     bool   `json:"lanes"`
 	Cells     bool   `json:"cells"`
 	Published bool   `json:"published"`
+	// Chosen is the choice the cells phase kept in the run's record when it ran (plan.MeasurementRun.Chosen), which a
+	// run of the key that credits the phase gives its publication; nil where it kept none.
+	Chosen []string `json:"chosen"`
 }
 
 const (
@@ -618,9 +647,11 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 	remeasured := !state.Cells
 	if remeasured {
 		state.Cells = phase("cells", "-run", "-cells", "-reached")
+		state.Chosen = run.chosen()
 		remember()
 	} else {
 		credit("cells")
+		run.choose(state.Chosen)
 	}
 	if remeasured || !state.Published {
 		state.Published = phase("publication", "-scorecard", "-publish")

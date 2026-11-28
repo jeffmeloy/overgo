@@ -1,7 +1,342 @@
 {
   "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
-  "items": [],
+  "items": [
+    {
+      "id": "scorecard-unscored-projection-20261128t121402z",
+      "title": "Define the held-out evaluation that measures projection quality",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures projection quality",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-projection",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - Unlimited-OCR-bf16 held-out-quality: no held-out evaluation for projection yet; proposed: the image, video, multi-image and mixed caption-matching sets the store already scores a projection on\n- gemma-4-12B-it held-out-quality: no held-out evaluation for projection yet; proposed: the image, video, multi-image and mixed caption-matching sets the store already scores a projection on\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-image-gen-20261128t121402z",
+      "title": "Define the held-out evaluation that measures image-gen quality",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures image-gen quality",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - Krea-2-Turbo held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-training-20261128t121402z",
+      "title": "Measure training's unmeasured cells",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure training's unmeasured cells",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - MOSS-Image-SFT-797fa8e678b4f load-time: no benchmark load time and no recorded load phase\n- Qwen2.5-0.5B load-time: not measured since the previous scorecard: its newest reading is of 2026-10-11\n- Qwen2.5-0.5B peak-device-memory: not measured since the previous scorecard: its newest reading is of 2026-10-11\n- Qwen3.5-9B load-time: not measured since the previous scorecard: its newest reading is of 2026-10-31\n- Qwen3.5-9B peak-device-memory: not measured since the previous scorecard: its newest reading is of 2026-10-31\n- segment-1 failure-rate: no completed serving attempts recorded\n- segment-1 load-time: no benchmark load time and no recorded load phase\n- segment-1 peak-device-memory: no benchmark or serving peak device memory\n- vision-bridge-9b failure-rate: no completed serving attempts recorded\n- vision-bridge-9b load-time: no benchmark load time and no recorded load phase\n- vision-bridge-9b peak-device-memory: no benchmark or serving peak device memory\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-inference-20261128t121402z",
+      "title": "Measure inference's unmeasured cells",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure inference's unmeasured cells",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - Qwen3.5-9B first-output: not measured since the previous scorecard: its newest reading is of 2026-11-12\n- Qwen3.5-9B throughput: not measured since the previous scorecard: its newest reading is of 2026-11-12\n- Qwen3.5-9B load-time: not measured since the previous scorecard: its newest reading is of 2026-11-12\n- Qwen3.5-9B peak-device-memory: not measured since the previous scorecard: its newest reading is of 2026-11-12\n- gemma-4-12B-it first-output: not measured since the previous scorecard: its newest reading is of 2026-11-12\n- gemma-4-12B-it throughput: not measured since the previous scorecard: its newest reading is of 2026-11-12\n- gemma-4-12B-it held-out-quality: no held-out evaluation of this recipe\n- gemma-4-12B-it load-time: not measured since the previous scorecard: its newest reading is of 2026-11-12\n- gemma-4-12B-it peak-device-memory: not measured since the previous scorecard: its newest reading is of 2026-11-12\n- gemma-4-12B-it-fp8 held-out-quality: no held-out evaluation of this recipe\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-image-gen-20261128t121402z",
+      "title": "Measure image-gen's unmeasured cells",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure image-gen's unmeasured cells",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-image-gen",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - Krea-2-Turbo first-output: its measured attempt recorded no preset, the size and steps it ran, so it is measured again\n- Krea-2-Turbo load-time: not measured since the previous scorecard: its newest reading is of 2026-10-31\n- Krea-2-Turbo peak-device-memory: not measured since the previous scorecard: its newest reading is of 2026-10-31\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-video-gen-20261128t121402z",
+      "title": "Compare the path a video-gen request takes with a reference output for each model it is scored on",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compare the path a video-gen request takes with a reference output for each model it is scored on",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-video-gen",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - Self-Forcing held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-inference-20261128t121402z",
+      "title": "Compare the path a inference request takes with a reference output for each model it is scored on",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compare the path a inference request takes with a reference output for each model it is scored on",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-inference",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - Carbon-500M held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n- MiniCPM5-1B held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n- qwen25-05b-judged-proof held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n- qwen25-05b-order-25 held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-image-gen-20261128t121402z",
+      "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-gen",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - MOSS-Image-SFT-797fa8e678b4f held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "propose-landed-key",
+      "title": "A gap that opens again after its row landed is filed under a new id, so no landing is refused for it",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A gap that opens again after its row landed is filed under a new id, so no landing is refused for it",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestAGapThatOpensAgainIsFiledUnderANewID$'",
+          "files": [
+            "cmd/loop"
+          ],
+          "rationale": "Note: The lead's own finding, observed at 3a7b3877d: the measurement's Propose filed scorecard-regressed-206f3f994f77c003, the key of a row landed on 2026-10-31 (2314b1de7), and every landing after it was refused (\"the change's plan holds ... which landed as 2314b1de755d: the plan is from before that landing\"), the gate reading it as a landed step a merge reopened. A gap key is the same each time its gap opens, and Propose skips only a key the plan holds now, not one that landed, so a gap that opens again after its row closed blocks every commit until the lead retires it by hand. The change: Propose files a gap whose key landed before under that key with the scorecard it was found on appended, so the gap is worked again under an id no landing holds. First read Propose and how a landing reads Landed-Row trailers.\n\nCheck: TestAGapThatOpensAgainIsFiledUnderANewID, a gap whose key a landed row holds is filed under another id that names the key."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-peak-capacity",
+      "title": "Flash-Next's peak device memory is declared at the card's capacity, the level its experts' fill of the free card reaches",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Flash-Next's peak device memory is declared at the card's capacity, the level its experts' fill of the free card reaches",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-206f3f994f77c003",
+          "files": [
+            "internal/scorecard"
+          ],
+          "rationale": "Note: The measurement at 3a7b3877d filed Qwen3.8 Flash Next's peak device memory, 4.97706332e10 bytes, past the 4.94337353e10 it was declared a trade at on 2026-10-31 (scorecard-regressed-206f3f994f77c003/do, 2314b1de7), under that row's key, which a landing refuses as a landed step reopened. By the declaration's own cause the round's experts fill the card memory the round leaves free, so the peak is the card's 49,140 MiB less what other processes hold: the run kept the card quiet (no other process on it from 03:32), and the fill rose 334 MB with it. A declaration at one reading's level files every quieter run again. The change: the trade is declared at the card's capacity, the level a fill of the free card reaches when nothing else holds it, so the scorecard files the peak again only past what the card can hold; a regression of the round's own memory shows as fewer experts held, in its throughput, which the scorecard compares. First read internal/scorecard/declared_trades.json and validate -scorecard -declare.\n\nCheck: go run ./cmd/validate -scorecard -gap scorecard-regressed-206f3f994f77c003 passes, the gap closed by the declaration."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-1fc810d2a7c4cb20",
+      "title": "Restore SimpleDiffusion-TensorProductAttentionRope image-gen peak-device-memory to 559451404 bytes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore SimpleDiffusion-TensorProductAttentionRope image-gen peak-device-memory to 559451404 bytes",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1fc810d2a7c4cb20 -target 5.59451404e+08",
+          "rationale": "- SimpleDiffusion-TensorProductAttentionRope peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d}: 559451404 to 623060480 (+63609076, +11.4%, allowed 50000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-22b33dd45488870f",
+      "title": "Restore MiniCPM5-1B inference throughput to 7859.49029 tok/s",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore MiniCPM5-1B inference throughput to 7859.49029 tok/s",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-22b33dd45488870f -target 7859.490293575815",
+          "rationale": "- MiniCPM5-1B throughput, {Metric:output tokens over decode time, a request again on a loaded model Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0361f2ddfc1eae3df570de4af0fccf9e3f6b3c89d88d4bfe01954d0e1668aa1d}: 8764.77688 to 355.015144 (-8409.76174, -95.9%, allowed 905.28659; serving output tokens over decode time, a request again on a loaded model, the median of the newest attempts); measured under recipe:sha256:0361f2ddfc1eae3df570de4af0fccf9e3f6b3c89d88d4bfe01954d0e1668aa1d, the reference under recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c; run under policy profile:sha256:cda9872a5b30cdc01766181fe0400a67ccab7a3f13c6634206443685b4ebb62a, the reference under ; 2 earlier readings on its contract, fewer than the 5 that say what it holds and how far it moves, so it is allowed the 0.103 of its value that the median of its column's 4 judged throughput cells is\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-2af660c27dcb3d51",
+      "title": "Restore Un-0 video-gen first-output to 40.7009 ms",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Un-0 video-gen first-output to 40.7009 ms",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-2af660c27dcb3d51 -target 40.700900000000004",
+          "rationale": "- Un-0 first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e}: 28.4897 to 47.1161 (+18.6264, +65.4%, allowed 12.2112; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-40c447bf2908d51d",
+      "title": "Restore Qwen2.5-0.5B inference throughput to 8822.22067 tok/s",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen2.5-0.5B inference throughput to 8822.22067 tok/s",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-40c447bf2908d51d -target 8822.220674917911",
+          "rationale": "- Qwen2.5-0.5B throughput, {Metric:output tokens over decode time, a request again on a loaded model Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:1a0b06838824501ec4adb6ac211323778a1138298e59fb82b03d725de69dff67}: 9838.39829 to 533.881229 (-9304.51706, -94.6%, allowed 1016.17761; serving output tokens over decode time, a request again on a loaded model, the median of the newest attempts); measured under recipe:sha256:1a0b06838824501ec4adb6ac211323778a1138298e59fb82b03d725de69dff67, the reference under recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca; run under policy profile:sha256:6320d63c961f68caaf33d1af080618324414d7b61ad824ca05493b35f80cb750, the reference under ; 2 earlier readings on its contract, fewer than the 5 that say what it holds and how far it moves, so it is allowed the 0.103 of its value that the median of its column's 4 judged throughput cells is\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-4f4c71f5d82471cf",
+      "title": "Restore Un-0 image-gen first-output to 25.4389 ms",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Un-0 image-gen first-output to 25.4389 ms",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-4f4c71f5d82471cf -target 25.438900000000007",
+          "rationale": "- Un-0 first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415}: 12.4393 to 30.9392 (+18.4999, +148.7%, allowed 12.9996; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-53dd021b2f0f0bdb",
+      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen load-time to 1063.2727 ms",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen load-time to 1063.2727 ms",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-53dd021b2f0f0bdb -target 1063.2727000000002",
+          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 514.8903 to 11456.4638 (+10941.5735, +2125.0%, allowed 548.3824; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-5445f2f69ef28413",
+      "title": "Restore LiveEdit video-gen peak-device-memory to 3.79269704e+09 bytes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore LiveEdit video-gen peak-device-memory to 3.79269704e+09 bytes",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-5445f2f69ef28413 -target 3.792697036e+09",
+          "rationale": "- LiveEdit peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965}: 3.79269704e+09 to 1.3046456e+10 (+9.25375898e+09, +244.0%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-71e52fb3f6f58560",
+      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65883187e+10 bytes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65883187e+10 bytes",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-71e52fb3f6f58560 -target 1.6588318724e+10",
+          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 1.65883187e+10 to 3.27996662e+10 (+1.62113475e+10, +97.7%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-7a6124fa2df88a0c",
+      "title": "Restore ViTXL_n08 reconstruction load-time to 725.5973 ms",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore ViTXL_n08 reconstruction load-time to 725.5973 ms",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7a6124fa2df88a0c -target 725.5972999999996",
+          "rationale": "- ViTXL_n08 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:41b8031ddea13d78905413c50377e4a1ec6ef7f8696d89782342de976fc2af8f}: 658.5233 to 794.3491 (+135.8258, +20.6%, allowed 67.074; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-8ce4f08cfa124419",
+      "title": "Restore Wan2.1-T2V-1.3B video-gen peak-device-memory to 3.83311892e+09 bytes",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Wan2.1-T2V-1.3B video-gen peak-device-memory to 3.83311892e+09 bytes",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8ce4f08cfa124419 -target 3.833118924e+09",
+          "rationale": "- Wan2.1-T2V-1.3B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4}: 3.83311892e+09 to 1.31086359e+10 (+9.27551693e+09, +242.0%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-d9a7ba3852c25253",
+      "title": "Restore Un-0 image-gen load-time to 0.6342 ms",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Un-0 image-gen load-time to 0.6342 ms",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-d9a7ba3852c25253 -target 0.6342000000000001",
+          "rationale": "- Un-0 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415}: 0.4658 to 1.3879 (+0.9221, +198.0%, allowed 0.1684; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-video-gen",
+      "title": "Measure video-gen's unmeasured cells",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure video-gen's unmeasured cells",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-video-gen",
+          "rationale": "- Self-Forcing first-output: not measured since the previous scorecard: its newest reading is of 2026-11-14\n- Self-Forcing load-time: not measured since the previous scorecard: its newest reading is of 2026-11-14\n- Self-Forcing peak-device-memory: not measured since the previous scorecard: its newest reading is of 2026-11-14\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    }
+  ],
   "decisions": [
     {
       "id": "skill-source-form",

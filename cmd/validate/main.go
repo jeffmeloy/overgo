@@ -324,7 +324,11 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	compared, err := lastRecord(storeRoot)
+	// A run is judged against the newest record of another commit, never its own (reachedFrom): its contracts, its
+	// promotion, the cells it reaches and the first readings it keeps. A retry after a partial publication had chosen
+	// against that record, and a failed first reading whose model and task another cell's reading there answered was
+	// dropped while the cells phase passed (SQA-524).
+	compared, err := reachedFrom(ctx, *root, storeRoot)
 	if err != nil {
 		return err
 	}
@@ -352,15 +356,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		plan = plan.Chosen(chosen, compared)
 	}
 	if *reached {
-		head, err := gitauthority.Query(ctx, *root, "rev-parse", "HEAD")
-		if err != nil {
-			return err
-		}
-		from, err := reachedFrom(storeRoot, strings.TrimSpace(string(head)))
-		if err != nil {
-			return err
-		}
-		chosen, err := reachedCells(ctx, *root, from, registered)
+		chosen, err := reachedCells(ctx, *root, compared, registered)
 		if err != nil {
 			return err
 		}

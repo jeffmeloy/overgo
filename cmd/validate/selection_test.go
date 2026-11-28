@@ -72,7 +72,7 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 	if _, err := scorecard.Publish(scorecard.Directory(store), time.Now(), scorecard.Record{Commit: promoted, Rows: []scorecard.Row{row}}); err != nil {
 		t.Fatal(err)
 	}
-	baseline, err := lastRecord(store)
+	baseline, err := reachedFrom(t.Context(), t.TempDir(), store)
 	if err != nil || baseline == nil || baseline.Commit != promoted {
 		t.Fatalf("the newest scorecard beside the store was not read: %+v, %v", baseline, err)
 	}

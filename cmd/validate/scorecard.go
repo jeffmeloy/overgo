@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
+	"overgo/internal/gitauthority"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -95,28 +96,22 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 	return err
 }
 
-// lastRecord is the scorecard the cycle's next record is compared with when it
-// chooses what to re-measure: the newest published beside the store, whose
-// contracts a re-measurement is to join. Nil when none is published.
-func lastRecord(storeRoot string) (*scorecard.Record, error) {
-	published, err := scorecard.Records(scorecard.Directory(storeRoot))
-	if err != nil || len(published) == 0 {
-		return nil, err
-	}
-	return &published[len(published)-1], nil
-}
-
-// reachedFrom is the record a run's cells are reached from (reachedCells): the newest published of a commit other than
-// head, never head's own. A cycle whose cells failed publishes all the same, and its retry at the commit had reached its
-// cells from that partial record, found nothing changed, and measured no cell, the one that failed among them, while
-// its cells phase passed (SQA-524). Nil when no other commit's record is published.
-func reachedFrom(storeRoot, head string) (*scorecard.Record, error) {
+// reachedFrom is the scorecard a run at head is compared with: the newest published beside the store of a commit other
+// than head, never head's own, whose contracts its re-measurement joins and against which it chooses and reaches the
+// cells it measures (reachedCells, Plan.Chosen). A cycle whose cells failed publishes all the same, and its retry at the
+// commit had compared with that partial record: it reached its cells from it, found nothing changed and measured no
+// cell, and a failed first reading whose model and task another cell's reading there answered was dropped, while its
+// cells phase passed (SQA-524). Head is root's checked-out commit; outside a checkout it is the newest record, and nil
+// when none is published.
+func reachedFrom(ctx context.Context, root, storeRoot string) (*scorecard.Record, error) {
+	checkedOut, _ := gitauthority.Query(ctx, root, "rev-parse", "HEAD")
+	head := strings.TrimSpace(string(checkedOut))
 	published, err := scorecard.Records(scorecard.Directory(storeRoot))
 	if err != nil {
 		return nil, err
 	}
 	for index := len(published) - 1; index >= 0; index-- {
-		if published[index].Commit != head {
+		if head == "" || published[index].Commit != head {
 			return &published[index], nil
 		}
 	}

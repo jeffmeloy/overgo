@@ -1,8 +1,8 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would let the measurement at 3a7b3877d finish. The longer tests passed in 4 min 59 s and the run reached the model measurements. The comparable MOSS section timings are still due.",
-    "I rank SQA-524 first because a retry can report success while omitting the measurement that failed. SQA-525 comes next because every full run repeats file hashing during setup. Both fit the existing measurement runner."
+    "Master took cells-retry/reach before hash-once/do. That order made sense. The original retry case now works and the dry run and background fill share hashes. With the plan empty, I would let the measurement at 3a7b3877d finish with the 95 cell results it has kept. The November 25 workflow recording put first-pass text-to-image at 18.521 s against ComfyUI's 13.552 s. Neither landing measures a change in that gap.",
+    "I would finish SQA-524 first. A partial scorecard can still hide a failed first measurement at the size a user requests. SQA-526 comes next because it requires a mutable input to change during a resumed run. Both cases fit existing selection and credit fixtures without another GPU draw."
   ],
   "branch": "master",
   "findings": [
@@ -10,29 +10,30 @@
       "id": "SQA-524",
       "severity": "P2",
       "files": [
-        "cmd/loop/improve.go",
         "cmd/validate/main.go",
-        "cmd/validate/reach.go",
         "cmd/validate/selection.go",
+        "cmd/validate/reach.go",
+        "cmd/validate/scorecard.go",
         "cmd/validate/run.go",
-        "cmd/validate/scorecard.go"
+        "cmd/validate/reached_from_test.go"
       ],
-      "input": "A change reaches two selected measurements of a previously measured, untrained model. One succeeds and earns credit. The other fails transiently. The cycle publishes the partial scorecard, which holds a valid reading for that model and task. Interrupt before background fill clears the cycle state, then resume the same commit with unchanged obligations and the transient fault gone.",
-      "expected": "Keep the successful cell's credit and retry the failed cell before marking the cells phase passed. The measurement runner can keep the original comparison commit for reach selection on resume. Keep the partial publication available while recovery is pending.",
-      "actual": "Source counterexample at 3a7b3877d. measurePhases records cells=false and publishes at the current commit. On retry, lastRecord selects that partial publication. reachedCells compares the commit with itself and selects nothing. Plan.Chosen drops the failed cell because readBefore accepts any valid reading for its model and task. executeMeasured returns success on an empty selection, so the runner can mark cells passed and republish without retrying the failure. The active run had reached its cells when reviewed. This failure was not observed in that run."
+      "input": "The previous scorecard has no image-gen reading for a listed, untrained MOSS model. Only cmd/server changed since that record. The first-measurement rule selects image-proof and image-user-size. The proof succeeds, the 1024 x 1024 request fails transiently, and the cycle publishes the proof's valid timing. Interrupt before fill clears cycle credit, then resume at the same commit and store.",
+      "expected": "Use the pre-attempt scorecard for the first-measurement decision in both list and reach selection. The successful proof keeps its cell credit and the user-size cell stays due until measured. The existing retry fixture can check which cells survive selection with an older scorecard and a partial publication.",
+      "actual": "On a6e5c740f, cells-retry/reach fixes the original case where a source change reached the model. In this first-measurement case reachedFrom correctly returns the older commit, and cmd/server reaches neither image cell. Both calls to Plan.Chosen still use lastRecord for readBefore. The proof's timing satisfies that model-and-task lookup for both cells, so the reach filter drops the failed user-size request before credit is consulted. The cells phase can pass without it. This is a source counterexample."
     },
     {
-      "id": "SQA-525",
+      "id": "SQA-526",
       "severity": "P2",
       "files": [
-        "cmd/loop/improve.go",
         "cmd/validate/bound_records.go",
         "cmd/validate/cell_credit.go",
-        "cmd/validate/run_digests_test.go"
+        "cmd/validate/run.go",
+        "cmd/validate/run_digests_test.go",
+        "cmd/validate/cell_credit_test.go"
       ],
-      "input": "Start a recorded full measurement with OVERGO_MEASUREMENT_RUN initially unset in the parent. A runnable cell has an unchanged, readable model file. The dry run and preflight bind it, and background validation binds it again if the cycle reaches fill.",
-      "expected": "Pass the existing run recorder's environment to the dry run and the background validator. Each unchanged file then needs one successful content hash per started run. Keep the fresh binding on a new run and retry files that could not be hashed.",
-      "actual": "Source counterexample at 3a7b3877d. measureScorecard starts the dry run with no recorder environment. bindCells hashes the file and keepDigests discards the result. Preflight hashes it again. Background fill passes only cycle credit and hashes it a third time. TestARunHashesEachModelFileOnce sets the environment itself and misses both callers. The active run recorded 311 digest paths totaling 233,832,564,810 bytes by file size. Repeat-read time and physical disk traffic were not measured."
+      "input": "Resume with valid credit for a guard cell at the same commit and store, a registered local weights file and a current discovery memo. After the dry run hashes the original weights, overwrite the same path with different bytes of the same size and restore its modification time. The cells phase binds the still-registered model under the same run record.",
+      "expected": "At the point of granting prior credit, require evidence that the mutable input still has the credited bytes. Keep the shared digest for inputs whose contents are pinned. Where identity cannot be established, revalidate the affected input or withhold its credit. Exercise the existing changed-weights credit case with the run record enabled.",
+      "actual": "On a6e5c740f, runDigests returns the dry run's digest by path. consumedFiles finds that digest and constructs the old cell key. executeMeasured sees credit.has and counts the cell as acquired without opening its weights. TestARunHashesEachModelFileOnce explicitly expects a within-run overwrite to preserve the binding. TestResumedRunStartsAgainACellWhoseWeightsChanged checks the opposite credit decision without the digest record. This is a source counterexample. No file change was observed in the active run."
     }
   ],
   "master_lead_triage": {
@@ -42,22 +43,20 @@
       "SQA-524": {
         "action": "implemented",
         "rows": [
-          "cells-retry/reach"
+          "compared-earlier/do"
         ],
-        "answered": "e2c10fadb6c6",
-        "note": "Answered by the lead on 2026-11-28 at 3a7b3877d: valid from source, a phase that passes without measuring (a retry reaches its cells from the partial publication at its own commit, so the failed cell is selected by nothing and the cells phase is recorded passed). Not observed. Filed as cells-retry/reach, first: a commit's cells are reached from the newest record of an earlier commit, never its own, so a retry reaches the cells its first attempt did. Implemented 2026-11-28 by cells-retry/reach (49deab372): validate reaches a run's cells from the newest record of another commit (reachedFrom), so a retry at the commit reaches the cells its first attempt did (TestARetryReachesItsCellsFromTheCommitBefore), for the review's recheck."
+        "answered": "7be240658e7e",
+        "note": "Answered again by the lead on 2026-11-28 at a6e5c740f, for the finding as reopened: valid from source, the lead's cure falling short (Plan.Chosen still judged a retry's first readings against its own partial publication, so a failed first reading at a person's size whose model and task the proof's timing answered there was dropped). Fixed in the measurement flow every retry takes, so filed despite a second round. Implemented by compared-earlier/do, the landing that carries this answer: the whole run is compared with the newest record of a commit other than the one checked out (reachedFrom), its contracts, promotion, reach and kept first readings alike; lastRecord goes (TestARunIsComparedWithAnEarlierCommitsRecord), for the review's recheck."
       },
-      "SQA-525": {
-        "action": "implemented",
-        "rows": [
-          "hash-once/do"
-        ],
-        "answered": "5fa96c0f4365",
-        "note": "Answered by the lead on 2026-11-28 at 3a7b3877d: valid from source, a cost every full run pays (the dry run and the fill hash every model file again beside the preflight, 311 paths and 233.8 GB by size at 3a7b3877d). Filed as hash-once/do: both are given the run record's environment, as the phases are. Implemented 2026-11-28 by hash-once/do, the landing that carries this answer: measureScorecard and the fill start validate through one starter, and the dry run, each phase and the fill are each given the run record's environment (TestEveryValidateOfARunReadsItsRecord), for the review's recheck."
+      "SQA-526": {
+        "action": "declined",
+        "rows": [],
+        "answered": "f91c1bbc7207",
+        "note": "Answered by the lead on 2026-11-28 at a6e5c740f: valid from source (within a run a file is identified once, by path, so a model file overwritten during the run keeps its first digest and its cell's credit). Declined: identifying each file once a run is hash-once's purpose, and a model file is never written in place, the model store being kept and never written through (owner doctrine); a file changed within one run is no case a run supports, and the next run binds it afresh."
       }
     }
   },
-  "next_finding_number": 526,
+  "next_finding_number": 527,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

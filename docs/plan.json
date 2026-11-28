@@ -3,17 +3,55 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "host-expert-pairs",
-      "title": "A split token's two rows are computed by a kernel that decodes each weight block once for both, so a decode token's host expert costs near what it did before the split",
+      "id": "run-record-chosen",
+      "title": "The loop keeps the cells phase's recorded choice through its own record writes and a credited restart, so publication reads the choice the cells phase made",
       "steps": [
         {
           "id": "do",
-          "title": "A split token's two rows are computed by a kernel that decodes each weight block once for both, so a decode token's host expert costs near what it did before the split",
-          "verify": "go test ./internal/hostexpert -count=1 -run '^TestATwoRowGroupMatchesTheFourRowKernel$'",
+          "title": "The loop keeps the cells phase's recorded choice through its own record writes and a credited restart, so publication reads the choice the cells phase made",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestPublicationReadsTheCellsPhasesChoice$'",
           "files": [
-            "internal/hostexpert"
+            "cmd/loop",
+            "internal/plan",
+            "cmd/validate"
           ],
-          "rationale": "Note: Serves flashnext-projection-exact/host-accuracy's cost, measured on the CPU at its landing (BenchmarkDecodeExpert, BenchmarkLayer): a decode token's split rows are two, which the kernels pad to their four-row group, so a decode expert rose from 54 to 71 us and a decode layer from 190 to about 250 us; two single-row calls instead took 85 us. A two-row kernel for each format (IQ4_XS, IQ4_NL, IQ3_S in both widths, Q8_0) decodes each weight block once for the token's two rows, and the decode expert's time is read again against 54 us. The prompt's layer doubled (19 to 36 ms on 32 workers) by its products, which a group of the four rows a block's decode already serves leaves as it is."
+          "rationale": "Note: Files SQA-527 as reopened at c87ae04a3: plan.RecordChosen writes the cells phase's choice, [] included, but on the phase's exit cmd/loop's runRecorder.write merges the child's digests, failures and packages into its in-memory record and rewrites the file without Chosen (chosen: null), so publication's runChoice falls back to the list and files MOSS's carried reading as owed; and a restart at publication after the cells phase earned credit begins a fresh record, cycleState crediting the cells with a boolean. The loop's writes keep the child's Chosen, a credited cells phase's choice is kept with its credit, and cmd/loop's measurePhases fixture carries the handoff through publication."
+        }
+      ]
+    },
+    {
+      "id": "failed-protocol",
+      "title": "A benchmark failure is recorded under its protocol, so a failed chat-template evaluation hides no other protocol's reading",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A benchmark failure is recorded under its protocol, so a failed chat-template evaluation hides no other protocol's reading",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestAFailedProtocolHidesNoOtherProtocolsReading$'",
+          "files": [
+            "cmd/validate",
+            "internal/scorecard"
+          ],
+          "rationale": "Note: Files SQA-530: noteFailedCell records a benchmark failure by model and family alone, so failedEvaluations matches every store/mmlu-pro reading of the model and Record.NotEvaluated replaces Flash-Next's successful raw headline (68.57%) with a gap and drops its other protocols' held-out readings when the chat-template worker alone failed. The failure is recorded with the cell's bound protocol and matched to each reading's contract protocol; an older family-only record still matches the family. The failure-publication fixture covers both outcomes and the older record."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-image-gen-20261128t121402z",
+      "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-gen",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures",
+            "scripts",
+            "kernels"
+          ],
+          "rationale": "Note: - MOSS-Image-SFT-797fa8e678b4f held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },
@@ -154,26 +192,6 @@
             "kernels"
           ],
           "rationale": "Note: - Carbon-500M held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n- MiniCPM5-1B held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n- qwen25-05b-judged-proof held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n- qwen25-05b-order-25 held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-uncompared-image-gen-20261128t121402z",
-      "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compare the path a image-gen request takes with a reference output for each model it is scored on",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-gen",
-          "files": [
-            "cmd",
-            "internal",
-            "docs",
-            "fixtures",
-            "scripts",
-            "kernels"
-          ],
-          "rationale": "Note: - MOSS-Image-SFT-797fa8e678b4f held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },

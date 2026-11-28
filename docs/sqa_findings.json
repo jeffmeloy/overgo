@@ -1,76 +1,50 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "I would finish proof-failure-recorded/do (SQA-528), then keep Flash-Next host accuracy next. On one layer in each of four formats, moving most experts to the host raised the maximum difference from the f32 reference from 0.0009-0.0014 to 0.056-0.074. The exact-token proof still needs to establish whether correcting host arithmetic restores the answer.",
-    "Before the next full measurement, I would address the remaining change-selection case in SQA-527 and the duplicate Flash-Next evaluator command in SQA-529. Both can be checked with existing small fixtures. Neither requires a MOSS draw or a full benchmark to demonstrate the defect."
+    "I would keep flashnext-projection-exact/host-accuracy first, then bring the MOSS request-path comparison (scorecard-uncompared-image-gen-20261128t121402z) ahead of the unrelated scorecard gaps. The last comparable Ultra first pass was 45.940 s against ComfyUI's 40.176 s. Its text-to-image section accounted for 4.969 s of that 5.764 s gap. Give that comparison the next MOSS GPU time.",
+    "I would fix SQA-527 before the next change-selected publication. The validator now records the right choices, but the loop overwrites them before publishing. SQA-530 is next: a single failed benchmark protocol can hide another protocol's successful result. Both can be checked in the existing host-only phase and publication fixtures."
   ],
   "branch": "master",
   "findings": [
-    {
-      "id": "SQA-528",
-      "severity": "P2",
-      "files": [
-        "cmd/validate/run.go",
-        "cmd/validate/failed_evaluations.go",
-        "cmd/validate/projection_proof.go",
-        "internal/plan/measurement_run.go",
-        "cmd/loophook/main.go"
-      ],
-      "input": "A recorded cells phase runs Flash-Next's projection-proof as a recipe verification. Its exact suite rejects image-1-bottom because the generated token has a leading space. Other selected cells can keep running. Read the existing measurement run report.",
-      "expected": "When the validator receives the failed proof's verdict, record its model, validation and concise cause in the active phase through plan.RecordFailure. The existing status reader can then report the failure while the other cells finish. Preserve the benchmark-specific marker used by scorecard publication and the distinct outcomes for inapplicable or contended measurements.",
-      "actual": "Observed at 3a7b3877d. The retained cells phase ended after 2 h 43 min 31 s with a failed verdict and no failed entry. The committed flashnext-projection-exact/do row names the mismatch. At 1251fe747, settle sends a failed projection proof only to the in-memory error list. Its persistent failure call is conditional on benchmark, which excludes projection proofs. The terminal error includes the cause, but MeasurementRun.Report cannot name the failed cell from the retained record."
-    },
     {
       "id": "SQA-527",
       "severity": "P2",
       "files": [
         "cmd/loop/improve.go",
-        "cmd/validate/main.go",
-        "cmd/validate/reach.go",
-        "cmd/validate/selection.go",
+        "cmd/loop/run_record_test.go",
         "cmd/validate/scorecard.go",
-        "internal/scorecard/record.go",
-        "internal/scorecard/stale_cells_test.go"
+        "internal/plan/measurement_run.go",
+        "internal/scorecard/record.go"
       ],
-      "input": "Publish a change-selected measurement cycle after a change confined to cmd/server Go code. MOSS is on the measured-model list, has a valid image reading older than the previous publication, and has no newer serving attempt. The change starts a cycle but reaches none of the image measurement's packages.",
-      "expected": "Keep the dated MOSS reading. Use the cells the validator actually selected to decide which readings this run owes. A selected failure and a genuinely missing reading still need attention. The existing carry fixture can distinguish those cases from a deliberately skipped cell.",
-      "actual": "Source counterexample at 25d8da54e. The landing covers the six Qwen3.5-9B readings from the original finding. For listed MOSS, the cells phase applies the additional -reached filter and Plan.Chosen places the image cell in NotChosen. Publication separately calls markUnchosen using only model-list membership. Record.gaps consequently reports MOSS's carried first-output time as unmeasured and Propose can file it for measurement. No repeat MOSS draw was observed."
+      "input": "A recorded loop cycle follows a change confined to cmd/server. MOSS is listed, its last image reading predates the previous publication, and the cells phase selects no MOSS image measurement. Complete that phase and publish. The same selection must survive restarting at publication after the cells phase earned credit.",
+      "expected": "Publish the choices the cells phase actually recorded, including an explicitly empty selection. Keep the dated MOSS reading and preserve gaps for failed or missing measurements. A retry that credits the cells phase needs the same choices without running the draws again. Exercise the handoff in cmd/loop's existing measurePhases fixture through publication.",
+      "actual": "Source counterexample at c87ae04a3. RecordChosen writes the right selection, including [] when no cells qualify. On phase exit runRecorder.write merges child digests, failures and packages into its in-memory record, omits Chosen, and rewrites the file with chosen:null. Publication's runChoice consequently falls back to the model list and files the carried MOSS reading as owed. On restart begin creates a fresh record and cycleState credits cells with only a boolean. The validator fixture reads before the parent rewrite. No repeat MOSS draw was observed."
     },
     {
-      "id": "SQA-529",
+      "id": "SQA-530",
       "severity": "P2",
       "files": [
-        "cmd/validate/selection.go",
-        "cmd/validate/run.go",
-        "cmd/validate/cell_credit.go",
-        "cmd/evaluate/main.go",
-        "internal/evaluation/mmlu_pro.go",
-        "cmd/validate/mmlu_pro_headline_test.go"
+        "cmd/validate/failed_evaluations.go",
+        "cmd/validate/failed_evaluations_test.go",
+        "cmd/validate/bound_records.go",
+        "internal/scorecard/record.go"
       ],
-      "input": "Use the retained Flash-Next scorecard containing MMLU-Pro readings under raw completion with five demonstrations, raw completion without demonstrations, and the chat template. Select the benchmark cells for a new measurement cycle.",
-      "expected": "Keep the historical no-demonstration score readable. Schedule the two supported readings once each and grant resume credit only for a protocol the evaluator actually ran. The existing MMLU-Pro selection fixture can supply all three readings and check the resulting evaluator arguments.",
-      "actual": "The November 25 measurement log lists Flash-Next cells 95/105 (without demonstrations), 101/105 (chat) and 105/105 (ordinary raw). The November 28 scorecard still contains the historical contract. At 25d8da54e compareContracts turns that contract into another runnable cell. reacquireCommand gives cells 95 and 105 identical evaluator arguments, which select the current raw protocol with demonstrations. cellKey includes the requested protocol, so a successful ordinary raw command can earn separate completion credit for the historical reading. Full case recomputation and elapsed cost were not measured."
+      "input": "A Flash-Next measurement succeeds on the current raw MMLU-Pro benchmark and its chat-template worker returns a hard error. Publish that run. The November 28 scorecard provides the two distinct contracts for the same model and suite, each with 1,209 cases.",
+      "expected": "Report the failed chat evaluation under its protocol and keep the successful raw result and its source visible. Preserve historical readings for other protocols. Use the protocol already bound to the validation cell and the contract already carried by each scorecard reading. The existing failure-publication fixture can cover both outcomes together and the older family-only record.",
+      "actual": "Source counterexample at c87ae04a3. noteFailedCell records only model and family for a benchmark. failedEvaluations then matches every store/mmlu-pro reading for that model. Record.NotEvaluated replaces the successful raw headline with a gap and removes the matching held-out readings, including the historical no-demonstration result. The retained raw and chat scores demonstrate distinct measurements (68.57% and 65.84%); the split success/failure outcome is a source trace."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-28",
-    "head": "c87ae04a3f874888b3fc709bbf1d48f2b127ebe8",
+    "head": "930b0a1ac6e80bf1fd0c99646214a1d32a0f9980",
     "findings": {
       "SQA-527": {
-        "action": "implemented",
+        "action": "filed",
         "rows": [
-          "carried-reached/do"
+          "run-record-chosen/do"
         ],
-        "answered": "7249903877b1",
-        "note": "Answered again by the lead on 2026-11-28, for the finding as reopened: implemented by carried-reached/do (c87ae04a3). The cells phase keeps in the run's record each model and task its run and background cells were chosen for (plan.RecordChosen), and the run's publication marks a row unchosen when the run chose none of its model's cells on its task, the list alone deciding outside a run (TestACellTheRunDidNotChooseOwesNoReading drives executeMeasured with MOSS not chosen and Qwen3.5-4B chosen, both listed)."
-      },
-      "SQA-528": {
-        "action": "implemented",
-        "rows": [
-          "proof-failure-recorded/do"
-        ],
-        "answered": "9a6504376850",
-        "note": "Answered by the lead on 2026-11-28: implemented by proof-failure-recorded/do (67955af64). The run's record of a cell says whether it broke, one that measured nothing as declared not counting, and every broken cell is written to the phase running as it breaks (noteFailedCell): a benchmark by its model and family as publication reads it, any other cell by what it measures and its cause's first line (TestABrokenProofIsRecordedInItsPhase drives executeMeasured with a broken projection proof)."
+        "answered": "ad2bed79520c",
+        "note": "Answered again by the lead on 2026-11-28 at 930b0a1ac, for the finding as reopened a second time: valid from source (cmd/loop's runRecorder.write rewrites the run's record from its in-memory copy on the cells phase's exit, dropping the Chosen the validator wrote, and a credited restart begins a fresh record). Filed as run-record-chosen, ahead of the scorecard rows and before the next change-selected publication: the loop's writes keep the child's Chosen and a credited cells phase's choice is kept with its credit, exercised through publication in measurePhases' fixture."
       },
       "SQA-529": {
         "action": "implemented",
@@ -79,10 +53,18 @@
         ],
         "answered": "c2dc2172af7d",
         "note": "Answered by the lead on 2026-11-28: implemented by historical-protocol/do (11b3d9f0d). A held-out contract whose protocol evaluate no longer names (evaluation.PromptingNamed) schedules no cell; its reading stays in the scorecard, compared as before, and each scheduled protocol runs with arguments of its own, so its credit is for the run that measured it (TestAHistoricalProtocolIsReadNotRun on the MMLU-Pro selection fixture with Flash-Next's three readings)."
+      },
+      "SQA-530": {
+        "action": "filed",
+        "rows": [
+          "failed-protocol/do"
+        ],
+        "answered": "c777afb41903",
+        "note": "Answered by the lead on 2026-11-28 at 930b0a1ac: valid from source (noteFailedCell names a benchmark failure by model and family, so one protocol's failure blanks the model's readings of the family under every protocol). Filed as failed-protocol, after run-record-chosen: the failure carries the cell's bound protocol and is matched to each reading's contract protocol, an older family-only record still matching the family."
       }
     }
   },
-  "next_finding_number": 530,
+  "next_finding_number": 531,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -59,6 +59,12 @@
 	XSTOK(H, R10, Y5); \
 	XSTOK(H, R11, Y6)
 
+#define XSSUB2(H) \
+	CODES((8+16*(H))(SI)); \
+	XSSCALE(H); \
+	XSTOK(H, R8, Y3); \
+	XSTOK(H, R9, Y4)
+
 #define XSSUB1(H) \
 	CODES((8+16*(H))(SI)); \
 	XSSCALE(H); \
@@ -138,6 +144,48 @@ xs4done:
 	VMOVSS X9, 8(DX)
 	HSUM(Y10, X10)
 	VMOVSS X10, 12(DX)
+	VZEROUPPER
+	RET
+
+// func iq4XSDots2(row *byte, blocks int, activations *[4]*byte, results *[4]float32)
+TEXT ·iq4XSDots2(SB), NOSPLIT, $0-32
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activations+16(FP), DI
+	MOVQ results+24(FP), DX
+	MOVQ 0(DI), R8
+	MOVQ 8(DI), R9
+	SETUP
+	VXORPS Y7, Y7, Y7
+	VXORPS Y8, Y8, Y8
+	TESTQ CX, CX
+	JZ xs2done
+
+xs2block:
+	VPXOR Y3, Y3, Y3
+	VPXOR Y4, Y4, Y4
+	XSSUB2(0)
+	XSSUB2(1)
+	XSSUB2(2)
+	XSSUB2(3)
+	XSSUB2(4)
+	XSSUB2(5)
+	XSSUB2(6)
+	XSSUB2(7)
+	WEIGHT(0(SI))
+	XSFOLD(R8, Y3, Y7)
+	XSFOLD(R9, Y4, Y8)
+	ADDQ $136, SI
+	ADDQ $292, R8
+	ADDQ $292, R9
+	DECQ CX
+	JNZ xs2block
+
+xs2done:
+	HSUM(Y7, X7)
+	VMOVSS X7, 0(DX)
+	HSUM(Y8, X8)
+	VMOVSS X8, 4(DX)
 	VZEROUPPER
 	RET
 
@@ -239,6 +287,39 @@ nl4done:
 	VMOVSS X9, 8(DX)
 	HSUM(Y10, X10)
 	VMOVSS X10, 12(DX)
+	VZEROUPPER
+	RET
+
+// func iq4NLDots2(row *byte, blocks int, activations *[4]*byte, results *[4]float32)
+TEXT ·iq4NLDots2(SB), NOSPLIT, $0-32
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activations+16(FP), DI
+	MOVQ results+24(FP), DX
+	MOVQ 0(DI), R8
+	MOVQ 8(DI), R9
+	NLSETUP
+	VXORPS Y7, Y7, Y7
+	VXORPS Y8, Y8, Y8
+	TESTQ CX, CX
+	JZ nl2done
+
+nl2block:
+	CODES(2(SI))
+	WEIGHT(0(SI))
+	NLTOK(R8, Y7)
+	NLTOK(R9, Y8)
+	ADDQ $18, SI
+	ADDQ $34, R8
+	ADDQ $34, R9
+	DECQ CX
+	JNZ nl2block
+
+nl2done:
+	HSUM(Y7, X7)
+	VMOVSS X7, 0(DX)
+	HSUM(Y8, X8)
+	VMOVSS X8, 4(DX)
 	VZEROUPPER
 	RET
 
@@ -344,6 +425,11 @@ GLOBL iq3sbits<>(SB), RODATA|NOPTR, $32
 	XSTOK(H, R10, Y5); \
 	XSTOK(H, R11, Y6)
 
+#define S3SUB2(H) \
+	S3SUB(H); \
+	XSTOK(H, R8, Y3); \
+	XSTOK(H, R9, Y4)
+
 #define S3SUB1(H) \
 	S3SUB(H); \
 	XSTOK(H, R8, Y3)
@@ -402,6 +488,49 @@ s34done:
 	VMOVSS X9, 8(DX)
 	HSUM(Y10, X10)
 	VMOVSS X10, 12(DX)
+	VZEROUPPER
+	RET
+
+// func iq3SDots2(row *byte, blocks int, activations *[4]*byte, results *[4]float32)
+TEXT ·iq3SDots2(SB), NOSPLIT, $0-32
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activations+16(FP), DI
+	MOVQ results+24(FP), DX
+	MOVQ 0(DI), R8
+	MOVQ 8(DI), R9
+	MOVQ ·iq3SGrid(SB), R12
+	SETUP
+	VXORPS Y7, Y7, Y7
+	VXORPS Y8, Y8, Y8
+	TESTQ CX, CX
+	JZ s32done
+
+s32block:
+	VPXOR Y3, Y3, Y3
+	VPXOR Y4, Y4, Y4
+	S3SUB2(0)
+	S3SUB2(1)
+	S3SUB2(2)
+	S3SUB2(3)
+	S3SUB2(4)
+	S3SUB2(5)
+	S3SUB2(6)
+	S3SUB2(7)
+	WEIGHT(0(SI))
+	XSFOLD(R8, Y3, Y7)
+	XSFOLD(R9, Y4, Y8)
+	ADDQ $110, SI
+	ADDQ $292, R8
+	ADDQ $292, R9
+	DECQ CX
+	JNZ s32block
+
+s32done:
+	HSUM(Y7, X7)
+	VMOVSS X7, 0(DX)
+	HSUM(Y8, X8)
+	VMOVSS X8, 4(DX)
 	VZEROUPPER
 	RET
 
@@ -487,6 +616,39 @@ q84done:
 	VMOVSS X9, 8(DX)
 	HSUM(Y10, X10)
 	VMOVSS X10, 12(DX)
+	VZEROUPPER
+	RET
+
+// func q80Dots2(row *byte, blocks int, activations *[4]*byte, results *[4]float32)
+TEXT ·q80Dots2(SB), NOSPLIT, $0-32
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activations+16(FP), DI
+	MOVQ results+24(FP), DX
+	MOVQ 0(DI), R8
+	MOVQ 8(DI), R9
+	NLSETUP
+	VXORPS Y7, Y7, Y7
+	VXORPS Y8, Y8, Y8
+	TESTQ CX, CX
+	JZ q82done
+
+q82block:
+	Q8CODES
+	WEIGHT(0(SI))
+	NLTOK(R8, Y7)
+	NLTOK(R9, Y8)
+	ADDQ $34, SI
+	ADDQ $34, R8
+	ADDQ $34, R9
+	DECQ CX
+	JNZ q82block
+
+q82done:
+	HSUM(Y7, X7)
+	VMOVSS X7, 0(DX)
+	HSUM(Y8, X8)
+	VMOVSS X8, 4(DX)
 	VZEROUPPER
 	RET
 

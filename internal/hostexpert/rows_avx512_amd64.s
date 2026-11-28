@@ -54,6 +54,11 @@
 	ZTOK(J, R10, Z14); \
 	ZTOK(J, R11, Z15)
 
+#define ZCHUNK2(J) \
+	ZCHUNK(J); \
+	ZTOK(J, R8, Z12); \
+	ZTOK(J, R9, Z13)
+
 // ZPREFETCH asks for the row's bytes 2,048 ahead of the block at SI, the next row's start included, as Strata's
 // row_dot does (STRATA_IQ_PREFETCH's default): the rows stream from memory in 4 KB pages.
 #define ZPREFETCH \
@@ -164,5 +169,45 @@ z34done:
 	VMOVSS X10, 8(DX)
 	ZHSUM(Z11, Y11, X11)
 	VMOVSS X11, 12(DX)
+	VZEROUPPER
+	RET
+
+// func iq3SDots2Z(row *byte, blocks int, activations *[4]*byte, results *[4]float32)
+TEXT ·iq3SDots2Z(SB), NOSPLIT, $0-32
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activations+16(FP), DI
+	MOVQ results+24(FP), DX
+	MOVQ 0(DI), R8
+	MOVQ 8(DI), R9
+	MOVQ ·iq3SGrid(SB), R12
+	ZSETUP
+	VPXORD Z8, Z8, Z8
+	VPXORD Z9, Z9, Z9
+	TESTQ CX, CX
+	JZ z32done
+
+z32block:
+	ZPREFETCH
+	VPXORD Z12, Z12, Z12
+	VPXORD Z13, Z13, Z13
+	ZCHUNK2(0)
+	ZCHUNK2(1)
+	ZCHUNK2(2)
+	ZCHUNK2(3)
+	ZWEIGHT
+	ZFOLD(R8, Z12, Z8)
+	ZFOLD(R9, Z13, Z9)
+	ADDQ $110, SI
+	ADDQ $292, R8
+	ADDQ $292, R9
+	DECQ CX
+	JNZ z32block
+
+z32done:
+	ZHSUM(Z8, Y8, X8)
+	VMOVSS X8, 0(DX)
+	ZHSUM(Z9, Y9, X9)
+	VMOVSS X9, 4(DX)
 	VZEROUPPER
 	RET

@@ -3,7 +3,7 @@
 package hostexpert
 
 // The AVX2 kernels (rows_amd64.s): a row's blocks against the activations of
-// tokensPerKernel tokens or of one, Strata's iq_avx2 scheme. Each 32-value
+// tokensPerKernel tokens, of two (a split token's rows, quantizeSplitQ8K) or of one, Strata's iq_avx2 scheme. Each 32-value
 // chunk of codes is looked up in the codebook once, its magnitudes multiplied
 // by the activations carrying its signs, IQ4_XS's sub-block scale folded into
 // the integer sums, and a block's float scales applied once a block.
@@ -12,16 +12,25 @@ package hostexpert
 func iq4XSDots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
 
 //go:noescape
+func iq4XSDots2(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
+
+//go:noescape
 func iq4XSDots1(row *byte, blocks int, activation *byte) float32
 
 //go:noescape
 func iq4NLDots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
 
 //go:noescape
+func iq4NLDots2(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
+
+//go:noescape
 func iq4NLDots1(row *byte, blocks int, activation *byte) float32
 
 //go:noescape
 func iq3SDots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
+
+//go:noescape
+func iq3SDots2(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
 
 //go:noescape
 func iq3SDots1(row *byte, blocks int, activation *byte) float32
@@ -33,10 +42,16 @@ func iq3SDots1(row *byte, blocks int, activation *byte) float32
 func iq3SDots4Z(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
 
 //go:noescape
+func iq3SDots2Z(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
+
+//go:noescape
 func iq3SDots1Z(row *byte, blocks int, activation *byte) float32
 
 //go:noescape
 func q80Dots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
+
+//go:noescape
+func q80Dots2(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
 
 //go:noescape
 func q80Dots1(row *byte, blocks int, activation *byte) float32
@@ -95,25 +110,26 @@ var avx2 = func() bool {
 }()
 
 var (
-	iq4XSKernel = vectorKernel(iq4XSDots4, iq4XSDots1, iq4XSDot)
-	iq4NLKernel = vectorKernel(iq4NLDots4, iq4NLDots1, iq4NLDot)
+	iq4XSKernel = vectorKernel(iq4XSDots4, iq4XSDots2, iq4XSDots1, iq4XSDot)
+	iq4NLKernel = vectorKernel(iq4NLDots4, iq4NLDots2, iq4NLDots1, iq4NLDot)
 	iq3SKernel  = iq3SVector()
-	q80Kernel   = vectorKernel(q80Dots4, q80Dots1, q80Dot)
+	q80Kernel   = vectorKernel(q80Dots4, q80Dots2, q80Dots1, q80Dot)
 )
 
 // iq3SVector is the IQ3_S kernel in 512-bit lanes where the processor runs them, whose grid lookups bound the AVX2
 // kernel's rate, and the AVX2 kernel elsewhere.
 func iq3SVector() rowKernel {
 	if avx512 {
-		return vectorKernel(iq3SDots4Z, iq3SDots1Z, iq3SDot)
+		return vectorKernel(iq3SDots4Z, iq3SDots2Z, iq3SDots1Z, iq3SDot)
 	}
-	return vectorKernel(iq3SDots4, iq3SDots1, iq3SDot)
+	return vectorKernel(iq3SDots4, iq3SDots2, iq3SDots1, iq3SDot)
 }
 
-// vectorKernel is the AVX2 kernel where the processor runs it and the scalar
-// formula elsewhere. A group of fewer than tokensPerKernel tokens of more
-// than one repeats its first token in the empty places.
-func vectorKernel(four func(*byte, int, *[tokensPerKernel]*byte, *[tokensPerKernel]float32), one func(*byte, int, *byte) float32,
+// vectorKernel is the AVX2 kernel where the processor runs it and the scalar formula elsewhere. A group of two, a
+// split decode token's rows, takes the two-row kernel, which decodes each weight block once for both where the
+// four-row one computed two repeats beside them (host-expert-pairs); a group of three repeats its first token in the
+// empty place.
+func vectorKernel(four, two func(*byte, int, *[tokensPerKernel]*byte, *[tokensPerKernel]float32), one func(*byte, int, *byte) float32,
 	dot func(row, activations []byte, blocks int) float32) rowKernel {
 	if !avx2 {
 		return scalarKernel(dot)
@@ -128,7 +144,11 @@ func vectorKernel(four func(*byte, int, *[tokensPerKernel]*byte, *[tokensPerKern
 			pointers[index] = &activations[min(index, len(activations)-1)][0]
 		}
 		var products [tokensPerKernel]float32
-		four(&row[0], blocks, &pointers, &products)
+		if len(activations) == splitParts {
+			two(&row[0], blocks, &pointers, &products)
+		} else {
+			four(&row[0], blocks, &pointers, &products)
+		}
 		copy(results, products[:len(activations)])
 	}
 }

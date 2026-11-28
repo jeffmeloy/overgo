@@ -30,7 +30,7 @@ func silu(gate, up float32) float32 {
 }
 
 // testExperts makes len(counts) experts stored as formats with random
-// weights, and the routed tokens' Q8_K activations, counts[e] tokens to
+// weights, and the routed tokens' Q8_K activations split in two, counts[e] tokens to
 // expert e.
 func testExperts(t testing.TB, formats Formats, counts []int) []Expert {
 	t.Helper()
@@ -64,7 +64,7 @@ func testExperts(t testing.TB, formats Formats, counts []int) []Expert {
 				input[value] = float32(draws.NormFloat64())
 			}
 			activation := make([]byte, Q8KBytes(testHidden))
-			testcheck.NoError(t, quantizeQ8K(input, activation))
+			testcheck.NoError(t, quantizeSplitQ8K(input, activation))
 			work.Activations = append(work.Activations, activation)
 			work.Out = append(work.Out, make([]float32, testHidden))
 		}
@@ -97,22 +97,27 @@ func TestLayerMatchesTheSerialLayer(t *testing.T) {
 		testcheck.NoError(t, workers.Layer(experts, formats, testHidden, testIntermediate, silu))
 		for index, work := range experts {
 			tokens := len(work.Activations)
-			gate, up := make([][]float32, tokens), make([][]float32, tokens)
-			quantized, out := make([][]byte, tokens), make([][]float32, tokens)
-			for token := range tokens {
-				gate[token], up[token] = make([]float32, testIntermediate), make([]float32, testIntermediate)
-				quantized[token] = make([]byte, testIntermediate/blockValues*q80BlockBytes)
-				out[token] = make([]float32, testHidden)
-			}
-			testcheck.NoError(t, rowsOf[formats.Gate](work.Gate, testHidden, work.Activations, gate, 0, testIntermediate))
-			testcheck.NoError(t, rowsOf[formats.Up](work.Up, testHidden, work.Activations, up, 0, testIntermediate))
-			for token := range tokens {
+			out := make([][]float32, tokens)
+			for token, activations := range work.Activations {
+				half := len(activations) / splitParts
+				gate := [][]float32{make([]float32, testIntermediate), make([]float32, testIntermediate)}
+				up := [][]float32{make([]float32, testIntermediate), make([]float32, testIntermediate)}
+				parts := [][]byte{activations[:half], activations[half:]}
+				testcheck.NoError(t, rowsOf[formats.Gate](work.Gate, testHidden, parts, gate, 0, testIntermediate))
+				testcheck.NoError(t, rowsOf[formats.Up](work.Up, testHidden, parts, up, 0, testIntermediate))
 				for row := range testIntermediate {
-					gate[token][row] = silu(gate[token][row], up[token][row])
+					gate[0][row] = silu(gate[0][row]+gate[1][row], up[0][row]+up[1][row])
 				}
-				testcheck.NoError(t, quantizeQ80(gate[token], quantized[token]))
+				quantized := make([]byte, splitParts*testIntermediate/blockValues*q80BlockBytes)
+				testcheck.NoError(t, quantizeSplitQ80(gate[0], quantized))
+				down := [][]float32{make([]float32, testHidden), make([]float32, testHidden)}
+				quantizedHalf := len(quantized) / splitParts
+				testcheck.NoError(t, rowsOf[formats.Down](work.Down, testIntermediate, [][]byte{quantized[:quantizedHalf], quantized[quantizedHalf:]}, down, 0, testHidden))
+				for row := range testHidden {
+					down[0][row] += down[1][row]
+				}
+				out[token] = down[0]
 			}
-			testcheck.NoError(t, rowsOf[formats.Down](work.Down, testIntermediate, quantized, out, 0, testHidden))
 			for token := range tokens {
 				if !slices.Equal(work.Out[token], out[token]) {
 					t.Fatalf("%v expert %d token %d: the pool's products differ from the serial ones", formats, index, token)

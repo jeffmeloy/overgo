@@ -34,9 +34,9 @@ var (
 
 var errFormats = errors.New("hostexpert: the layer's formats or widths are none the pool computes")
 
-// Q8KBytes is the Q8_K activations of a token of width values, the
-// activations an Expert's gate and up rows read.
-func Q8KBytes(width int) int { return width / superBlockValues * q8KBlockBytes }
+// Q8KBytes is the Q8_K activations of a token of width values, split in two (quantizeSplitQ8K), the activations an
+// Expert's gate and up rows read.
+func Q8KBytes(width int) int { return splitParts * (width / superBlockValues * q8KBlockBytes) }
 
 // Supported reports whether the pool computes an expert layer of formats at
 // the hidden and intermediate widths: IQ4_XS or IQ3_S gate and up rows of
@@ -47,8 +47,8 @@ func Supported(formats Formats, hidden, intermediate int) bool {
 		hidden > 0 && hidden%superBlockValues == 0 && intermediate > 0 && intermediate%blockValues == 0
 }
 
-// QuantizeQ8K quantizes each row of values, a token's activations, into the
-// same row of blocks as Q8_K across the pool's workers, or the caller's alone for a decode window's few.
+// QuantizeQ8K quantizes each row of values, a token's activations, into the same row of blocks as Q8_K split in two
+// (quantizeSplitQ8K), across the pool's workers, or the caller's alone for a decode window's few.
 func (p *Pool) QuantizeQ8K(values [][]float32, blocks [][]byte) error {
 	if len(values) != len(blocks) {
 		return errShape
@@ -56,11 +56,11 @@ func (p *Pool) QuantizeQ8K(values [][]float32, blocks [][]byte) error {
 	// A single token's row is the caller's, as Strata's host quantizes a window's activations itself.
 	if len(values) <= callerActivationRows {
 		for row := range values {
-			if err := quantizeQ8K(values[row], blocks[row]); err != nil {
+			if err := quantizeSplitQ8K(values[row], blocks[row]); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	return p.run(len(values), func(row int) error { return quantizeQ8K(values[row], blocks[row]) })
+	return p.run(len(values), func(row int) error { return quantizeSplitQ8K(values[row], blocks[row]) })
 }

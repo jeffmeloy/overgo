@@ -3,18 +3,17 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-projection-exact",
-      "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
+      "id": "host-expert-pairs",
+      "title": "A split token's two rows are computed by a kernel that decodes each weight block once for both, so a decode token's host expert costs near what it did before the split",
       "steps": [
         {
-          "id": "host-accuracy",
-          "title": "An expert computed on the host is as near the reference as on the card, so Flash-Next's answer does not move with the card's free memory",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -timeout=0 -run '^TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost$'",
+          "id": "do",
+          "title": "A split token's two rows are computed by a kernel that decodes each weight block once for both, so a decode token's host expert costs near what it did before the split",
+          "verify": "go test ./internal/hostexpert -count=1 -run '^TestATwoRowGroupMatchesTheFourRowKernel$'",
           "files": [
-            "internal/hostexpert",
-            "internal/cuda/executor"
+            "internal/hostexpert"
           ],
-          "rationale": "Measured at 1251fe747 by TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost on one routed layer of each of Flash-Next's formats, 64 tokens' 128 rows: with every expert on the card the output stands 0.0009 to 0.0014 from the f32 reference at most; with expert 0 on the card and the rest on the host it stands 0.056 to 0.074 (iq4_xs-iq4_nl 0.0564, fused 0.0580, iq3_s-iq4_nl 0.0739, iq4_xs-q8_0 0.0573), sixty times farther, from the host quantizing each token's activations as Q8_K and each expert's intermediate as Q8_0, as llama.cpp's CPU backend does. So the host is the inexact side, and the card quantizing as the host does (choice a) would make every answer worse to make two agree: the decision is that an expert computed on the host is computed as near the reference as the card computes it, within twice the card's difference, and its cost in the host's expert time on Flash-Next's decode is read before and after (TestFlashNextDecodeRoundIsStratas' rate, the hosted experts' share). Bit-for-bit agreement of a card and a CPU is no aim: their accumulation orders differ. First read internal/hostexpert's rows and the formats' vec-dot types.\n\nCheck: TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost on the card.\n\nNote: files set to internal/hostexpert, internal/cuda/executor: the host's expert arithmetic and the check that holds it to the card's"
+          "rationale": "Note: Serves flashnext-projection-exact/host-accuracy's cost, measured on the CPU at its landing (BenchmarkDecodeExpert, BenchmarkLayer): a decode token's split rows are two, which the kernels pad to their four-row group, so a decode expert rose from 54 to 71 us and a decode layer from 190 to about 250 us; two single-row calls instead took 85 us. A two-row kernel for each format (IQ4_XS, IQ4_NL, IQ3_S in both widths, Q8_0) decodes each weight block once for the token's two rows, and the decode expert's time is read again against 54 us. The prompt's layer doubled (19 to 36 ms on 32 workers) by its products, which a group of the four rows a block's decode already serves leaves as it is."
         }
       ]
     },

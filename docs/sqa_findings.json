@@ -54,15 +54,15 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-28",
-    "head": "67955af6491324f52bfa5cb7ba6836d4c1b31fed",
+    "head": "c87ae04a3f874888b3fc709bbf1d48f2b127ebe8",
     "findings": {
       "SQA-527": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "carried-reached/do"
         ],
         "answered": "7249903877b1",
-        "note": "Answered again by the lead on 2026-11-28 at 67955af64, for the finding as reopened: valid from source (carried-unselected, 25d8da54e, marks a row unchosen by the measured models list alone, while a change-selected cycle's -reached filter also leaves listed models' cells NotChosen, so MOSS's carried first output after a change confined to cmd/server is still filed as unmeasured). Filed as carried-reached, ahead of the Flash-Next row: the cells phase records the cells it chose in the run's record, and publication marks a row unchosen when the run chose none of its model's cells on its task, the list alone deciding outside a run."
+        "note": "Answered again by the lead on 2026-11-28, for the finding as reopened: implemented by carried-reached/do (c87ae04a3). The cells phase keeps in the run's record each model and task its run and background cells were chosen for (plan.RecordChosen), and the run's publication marks a row unchosen when the run chose none of its model's cells on its task, the list alone deciding outside a run (TestACellTheRunDidNotChooseOwesNoReading drives executeMeasured with MOSS not chosen and Qwen3.5-4B chosen, both listed)."
       },
       "SQA-528": {
         "action": "implemented",
@@ -73,12 +73,12 @@
         "note": "Answered by the lead on 2026-11-28: implemented by proof-failure-recorded/do (67955af64). The run's record of a cell says whether it broke, one that measured nothing as declared not counting, and every broken cell is written to the phase running as it breaks (noteFailedCell): a benchmark by its model and family as publication reads it, any other cell by what it measures and its cause's first line (TestABrokenProofIsRecordedInItsPhase drives executeMeasured with a broken projection proof)."
       },
       "SQA-529": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "historical-protocol/do"
         ],
         "answered": "c2dc2172af7d",
-        "note": "Answered by the lead on 2026-11-28 at 67955af64: valid from source (compareContracts turns Flash-Next's historical MMLU-Pro contract under raw completion without demonstrations into a runnable cell whose evaluator arguments are the ordinary raw cell's, and cellKey's protocol lets the ordinary run earn its credit). Filed as historical-protocol, ahead of the Flash-Next row: the historical reading stays readable and is never scheduled, and credit is granted only for a protocol the evaluator ran."
+        "note": "Answered by the lead on 2026-11-28: implemented by historical-protocol/do (11b3d9f0d). A held-out contract whose protocol evaluate no longer names (evaluation.PromptingNamed) schedules no cell; its reading stays in the scorecard, compared as before, and each scheduled protocol runs with arguments of its own, so its credit is for the run that measured it (TestAHistoricalProtocolIsReadNotRun on the MMLU-Pro selection fixture with Flash-Next's three readings)."
       }
     }
   },

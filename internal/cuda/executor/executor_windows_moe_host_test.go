@@ -12,6 +12,50 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+// expertLayout is one of Flash-Next's routed layers' bank formats, at a size its fixture computes in seconds.
+type expertLayout struct {
+	name                          string
+	banks                         [3]dtype.Type
+	fused                         bool
+	hidden, intermediate, experts uint64
+}
+
+// flashNextExpertLayouts are Flash-Next's layers' formats: IQ3_S gate and up with IQ4_NL down, IQ4_XS with Q8_0, and
+// IQ4_XS with IQ4_NL apart and fused.
+var flashNextExpertLayouts = []expertLayout{
+	{"iq4_xs-iq4_nl", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}, false, 512, 128, 48},
+	{"fused-iq4_xs-iq4_nl", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}, true, 512, 128, 48},
+	// Quantizing IQ3_S weights takes seconds a million, so its layer is the smallest.
+	{"iq3_s-iq4_nl", [3]dtype.Type{dtype.IQ3S, dtype.IQ3S, dtype.IQ4NL}, false, 256, 64, 16},
+	{"iq4_xs-q8_0", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}, false, 512, 128, 48},
+}
+
+// hostCase is the layout's case of 64 tokens' 128 routed rows, and the residency limit under which the card holds
+// expert 0 of each bank and the host every other: the card keeps expert 0 beside the tables of a pointer an expert.
+func (layout expertLayout) hostCase(t *testing.T) (moePinnedCase, uint64) {
+	t.Helper()
+	const pointerBytes, slotAlignment = 8, 256
+	c := moePinnedCase{
+		name: "host-cpu", compute: tensor.MulMatComputeNativeTensorCore,
+		hidden: layout.hidden, routerHidden: layout.hidden, intermediate: layout.intermediate, experts: layout.experts, divisor: 1, topK: 2,
+		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
+		banks: layout.banks, fused: layout.fused, tokens: 64,
+	}
+	shapes := []tensor.Shape{tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.intermediate, c.hidden)}
+	if layout.fused {
+		shapes = []tensor.Shape{tensor.MustShape(c.hidden, 2*c.intermediate), shapes[2]}
+	}
+	limit := uint64(len(shapes)) * c.experts * pointerBytes
+	for index, shape := range shapes {
+		expert, err := shape.Bytes(layout.banks[3-len(shapes)+index])
+		if err != nil {
+			t.Fatal(err)
+		}
+		limit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
+	}
+	return c, limit
+}
+
 // TestPromptHostExpertsComputeOnTheCPU holds a prompt's experts in host memory
 // that few routed rows reach, computed on the CPU where they lie, to the host
 // reference: 48 experts (16 of IQ3_S) of each of Flash-Next's layers' formats, IQ3_S gate
@@ -22,45 +66,12 @@ import (
 // the reference.
 func TestPromptHostExpertsComputeOnTheCPU(t *testing.T) {
 	// Serial: device fixtures share the one card.
-	const (
-		// The card keeps expert 0 of each bank beside the tables of a pointer an expert.
-		pointerBytes, slotAlignment = 8, 256
-		// hostShareLargest and hostShareMean bound the largest and the mean difference from the reference as
-		// shares of the largest value.
-		hostShareLargest, hostShareMean = 0.02, 0.005
-	)
-	for _, layout := range []struct {
-		name                          string
-		banks                         [3]dtype.Type
-		fused                         bool
-		hidden, intermediate, experts uint64
-	}{
-		{"iq4_xs-iq4_nl", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}, false, 512, 128, 48},
-		{"fused-iq4_xs-iq4_nl", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}, true, 512, 128, 48},
-		// Quantizing IQ3_S weights takes seconds a million, so its layer is the smallest.
-		{"iq3_s-iq4_nl", [3]dtype.Type{dtype.IQ3S, dtype.IQ3S, dtype.IQ4NL}, false, 256, 64, 16},
-		{"iq4_xs-q8_0", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}, false, 512, 128, 48},
-	} {
-		banks, fused := layout.banks, layout.fused
+	// hostShareLargest and hostShareMean bound the largest and the mean difference from the reference as shares of the
+	// largest value.
+	const hostShareLargest, hostShareMean = 0.02, 0.005
+	for _, layout := range flashNextExpertLayouts {
 		t.Run(layout.name, func(t *testing.T) {
-			c := moePinnedCase{
-				name: "host-cpu", compute: tensor.MulMatComputeNativeTensorCore,
-				hidden: layout.hidden, routerHidden: layout.hidden, intermediate: layout.intermediate, experts: layout.experts, divisor: 1, topK: 2,
-				routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
-				banks: banks, fused: fused, tokens: 64,
-			}
-			shapes := []tensor.Shape{tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.intermediate, c.hidden)}
-			if fused {
-				shapes = []tensor.Shape{tensor.MustShape(c.hidden, 2*c.intermediate), shapes[2]}
-			}
-			limit := uint64(len(shapes)) * c.experts * pointerBytes
-			for index, shape := range shapes {
-				expert, err := shape.Bytes(banks[3-len(shapes)+index])
-				if err != nil {
-					t.Fatal(err)
-				}
-				limit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
-			}
+			c, limit := layout.hostCase(t)
 			c.reference = true
 			_, want := c.run(t, newFixtureExecutor(t), dtype.F32)
 			cuda := newFixtureExecutor(t)
@@ -76,9 +87,10 @@ func TestPromptHostExpertsComputeOnTheCPU(t *testing.T) {
 				scale = max(scale, math.Abs(float64(want[index])))
 				mean += math.Abs(float64(got[index] - want[index]))
 			}
-			// The CPU quantizes each token's activations as Q8_K and each expert's intermediate ones as Q8_0, as
-			// llama.cpp's CPU backend does: 0.2% of the largest value on average and 1.3% at most here, where a
-			// row placed at another slot or taken by another expert misses by the value itself.
+			// The CPU quantizes each token's activations as Q8_K and each expert's intermediate ones as Q8_0, each
+			// split in two (hostexpert), and stands within the card's rounding of the reference
+			// (TestFlashNextExpertsAnswerAlikeOnTheCardAndTheHost), where a row placed at another slot or taken by
+			// another expert misses by the value itself.
 			if mean /= float64(len(want)); difference > hostShareLargest*scale || mean > hostShareMean*scale {
 				t.Fatalf("largest difference from the reference %g at %d (value %g), mean %g, largest value %g", difference, at, want[at], mean, scale)
 			}

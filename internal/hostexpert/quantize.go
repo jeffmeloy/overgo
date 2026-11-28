@@ -26,43 +26,87 @@ const (
 	mantissaBias  = 0x00400000
 )
 
-// quantizeQ8K quantizes values, a whole number of 256-value blocks, into
-// blocks as ggml's quantize_row_q8_K_ref does: each block's scale is its
-// first value of the largest magnitude over -127, every value is rounded to
-// the nearest integer of it over the scale, half to even, at most 127, and
-// the sums of each 16 are kept. A block of zeros quantizes to zeros.
-func quantizeQ8K(values []float32, blocks []byte) error {
+// quantizeQ8KBlock quantizes a block's 256 values as ggml's quantize_row_q8_K_ref does: the block's scale is its first
+// value of the largest magnitude over -127, every value is rounded to the nearest integer of it over the scale, half to
+// even, at most 127, and the sums of each 16 are kept. A block of zeros quantizes to zeros.
+func quantizeQ8KBlock(source []float32, target []byte) {
+	var largest, magnitude float32
+	for _, value := range source {
+		if absolute := math.Float32frombits(math.Float32bits(value) &^ float32Sign); absolute > magnitude {
+			magnitude, largest = absolute, value
+		}
+	}
+	if magnitude == 0 {
+		clear(target)
+		return
+	}
+	inverse := -q8Limit / largest
+	for index, value := range source {
+		target[q8KValuesAt+index] = byte(int8(min(q8Limit, nearestInt(float32(inverse*value)))))
+	}
+	for sum := range superBlockValues / q8KSumWidth {
+		total := int16(0)
+		for _, value := range target[q8KValuesAt+sum*q8KSumWidth : q8KValuesAt+(sum+1)*q8KSumWidth] {
+			total += int16(int8(value))
+		}
+		binary.LittleEndian.PutUint16(target[q8KSumsAt+q8KSumBytes*sum:], uint16(total))
+	}
+	binary.LittleEndian.PutUint32(target, math.Float32bits(1/inverse))
+}
+
+// splitParts is how many quantized rows a split row is (quantizeSplitQ8K): the values' and what their rounding left.
+const splitParts = 2
+
+// quantizeSplitQ8K quantizes values as Q8_K twice over into blocks, its two halves: the first half the values, each
+// block as ggml quantizes it (quantizeQ8KBlock), the second what that rounding left of each, so a row's product with
+// the two halves summed stands about 250 times nearer its product with the values than with the first half alone, at
+// one more integer product a row: with the first alone, ggml's CPU arithmetic, Flash-Next's host experts stood sixty
+// times the card's distance from the f32 reference (flashnext-projection-exact).
+func quantizeSplitQ8K(values []float32, blocks []byte) error {
 	if len(values)%superBlockValues != 0 {
 		return errDepth(len(values), superBlockValues)
 	}
-	if len(blocks) != len(values)/superBlockValues*q8KBlockBytes {
+	half := len(values) / superBlockValues * q8KBlockBytes
+	if len(blocks) != splitParts*half {
 		return errShape
 	}
+	var left [superBlockValues]float32
 	for block := range len(values) / superBlockValues {
 		source := values[block*superBlockValues : (block+1)*superBlockValues]
-		target := blocks[block*q8KBlockBytes : (block+1)*q8KBlockBytes]
-		var largest, magnitude float32
-		for _, value := range source {
-			if absolute := math.Float32frombits(math.Float32bits(value) &^ float32Sign); absolute > magnitude {
-				magnitude, largest = absolute, value
-			}
-		}
-		if magnitude == 0 {
-			clear(target)
-			continue
-		}
-		inverse := -q8Limit / largest
+		first := blocks[block*q8KBlockBytes : (block+1)*q8KBlockBytes]
+		quantizeQ8KBlock(source, first)
+		scale := math.Float32frombits(binary.LittleEndian.Uint32(first))
 		for index, value := range source {
-			target[q8KValuesAt+index] = byte(int8(min(q8Limit, nearestInt(float32(inverse*value)))))
+			left[index] = value - scale*float32(int8(first[q8KValuesAt+index]))
 		}
-		for sum := range superBlockValues / q8KSumWidth {
-			total := int16(0)
-			for _, value := range target[q8KValuesAt+sum*q8KSumWidth : q8KValuesAt+(sum+1)*q8KSumWidth] {
-				total += int16(int8(value))
-			}
-			binary.LittleEndian.PutUint16(target[q8KSumsAt+q8KSumBytes*sum:], uint16(total))
+		quantizeQ8KBlock(left[:], blocks[half+block*q8KBlockBytes:half+(block+1)*q8KBlockBytes])
+	}
+	return nil
+}
+
+// quantizeSplitQ80 is quantizeSplitQ8K's split of 32-value Q8_0 blocks, a down row's activations: the first half of
+// blocks the values (quantizeQ80), the second what that rounding left of each, read back through the first's f16 scale.
+func quantizeSplitQ80(values []float32, blocks []byte) error {
+	if len(values)%blockValues != 0 {
+		return errDepth(len(values), blockValues)
+	}
+	half := len(values) / blockValues * q80BlockBytes
+	if len(blocks) != splitParts*half {
+		return errShape
+	}
+	if err := quantizeQ80(values, blocks[:half]); err != nil {
+		return err
+	}
+	var left [blockValues]float32
+	for block := range len(values) / blockValues {
+		first := blocks[block*q80BlockBytes : (block+1)*q80BlockBytes]
+		scale := quant.Float16ToFloat32(binary.LittleEndian.Uint16(first))
+		for index, value := range values[block*blockValues : (block+1)*blockValues] {
+			left[index] = value - scale*float32(int8(first[q80ValuesAt+index]))
 		}
-		binary.LittleEndian.PutUint32(target, math.Float32bits(1/inverse))
+		if err := quantizeQ80(left[:], blocks[half+block*q80BlockBytes:half+(block+1)*q80BlockBytes]); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -193,3 +193,18 @@ func BenchmarkIQ4XSRows(b *testing.B) {
 		})
 	}
 }
+
+// quantizeQ8K quantizes values, a whole number of 256-value blocks, into
+// blocks as ggml's quantize_row_q8_K_ref does (quantizeQ8KBlock).
+func quantizeQ8K(values []float32, blocks []byte) error {
+	if len(values)%superBlockValues != 0 {
+		return errDepth(len(values), superBlockValues)
+	}
+	if len(blocks) != len(values)/superBlockValues*q8KBlockBytes {
+		return errShape
+	}
+	for block := range len(values) / superBlockValues {
+		quantizeQ8KBlock(values[block*superBlockValues:(block+1)*superBlockValues], blocks[block*q8KBlockBytes:(block+1)*q8KBlockBytes])
+	}
+	return nil
+}

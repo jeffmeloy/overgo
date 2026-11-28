@@ -3,6 +3,24 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "flashnext-projection-exact",
+      "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go run ./cmd/validate -run -model Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf -validation projection-proof -repo C:/Users/jeffm/overgo_data/overgodb-store",
+          "files": [
+            "cmd",
+            "internal",
+            "docs",
+            "fixtures"
+          ],
+          "rationale": "Note: Observed in the measurement at 3a7b3877d: Qwen3.8 Flash Next's projection-proof failed its exact suite on case \"image-1-bottom\", one token generated, \" D\" where the suite holds \"D\" (dataset-shard 1aea56cf9011), the only cell of 103 that failed. A labelled hypothesis, to be measured first: the run kept the card quiet, Flash-Next's experts fill the card memory the round leaves free (its peak rose 334 MB, flashnext-peak-capacity), more experts ran on the card than in the reading the suite was pinned beside, and the card's and the host's expert products differ enough to flip a near tie at the first token. The first step reads the cell again alone on a quiet card and records which experts the round held where, so the cause is named before any change: an exact suite that a placement flips is a check that depends on the card's free memory, and a path that answers otherwise on the card is a defect of the round.\n\nCheck: the projection-proof cell of Qwen3.8 Flash Next, measured alone, passes, or its failure is named with the round's expert placement."
+        }
+      ]
+    },
+    {
       "id": "scorecard-unscored-projection-20261128t121402z",
       "title": "Define the held-out evaluation that measures projection quality",
       "steps": [
@@ -159,21 +177,6 @@
             "kernels"
           ],
           "rationale": "Note: - MOSS-Image-SFT-797fa8e678b4f held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nNote: files set to cmd, internal, docs, fixtures, scripts, kernels: a proposed gap row is scoped by its gap, which a fix anywhere in the code or its data may close\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261128T121402Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "flashnext-peak-capacity",
-      "title": "Flash-Next's peak device memory is declared at the card's capacity, the level its experts' fill of the free card reaches",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Flash-Next's peak device memory is declared at the card's capacity, the level its experts' fill of the free card reaches",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-206f3f994f77c003",
-          "files": [
-            "internal/scorecard"
-          ],
-          "rationale": "Note: The measurement at 3a7b3877d filed Qwen3.8 Flash Next's peak device memory, 4.97706332e10 bytes, past the 4.94337353e10 it was declared a trade at on 2026-10-31 (scorecard-regressed-206f3f994f77c003/do, 2314b1de7), under that row's key, which a landing refuses as a landed step reopened. By the declaration's own cause the round's experts fill the card memory the round leaves free, so the peak is the card's 49,140 MiB less what other processes hold: the run kept the card quiet (no other process on it from 03:32), and the fill rose 334 MB with it. A declaration at one reading's level files every quieter run again. The change: the trade is declared at the card's capacity, the level a fill of the free card reaches when nothing else holds it, so the scorecard files the peak again only past what the card can hold; a regression of the round's own memory shows as fewer experts held, in its throughput, which the scorecard compares. First read internal/scorecard/declared_trades.json and validate -scorecard -declare.\n\nCheck: go run ./cmd/validate -scorecard -gap scorecard-regressed-206f3f994f77c003 passes, the gap closed by the declaration."
         }
       ]
     },

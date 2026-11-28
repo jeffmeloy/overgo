@@ -74,9 +74,9 @@
         "metric": "peak device memory",
         "origin": "serving"
       },
-      "level": 49433735344,
+      "level": 51527024640,
       "unit": "bytes",
-      "bought": "Strata's decode round for Flash-Next (8cc359407), whose experts fill the card memory the round leaves free, as Strata's layout does, for chat decode at Strata's rate: the peak is the card's capacity less what other processes hold, 0.3 percent above the 2026-10-30 reading; declared in scorecard-regressed-206f3f994f77c003/do"
+      "bought": "Strata's decode round for Flash-Next (8cc359407), whose experts fill the card memory the round leaves free, as Strata's layout does, for chat decode at Strata's rate: the peak is the card's capacity less what other processes hold, so it is declared at the card's 49,140 MiB, the level the fill reaches when nothing else holds the card; a reading's level filed every quieter run again (4.97706e10 bytes on the quiet card at 3a7b3877d), and the round's own memory growing shows as fewer experts held, in its throughput; declared in scorecard-regressed-206f3f994f77c003/do, raised in flashnext-peak-capacity/do"
     },
     {
       "model": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",

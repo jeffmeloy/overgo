@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/landing"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
@@ -338,6 +339,12 @@ func compareContracts(cells []ModelValidation, baseline *scorecard.Record) []Mod
 		for _, contract := range contracts {
 			_, family, derived := strings.Cut(contract.Suite, "/")
 			if !derived {
+				continue
+			}
+			// A contract under a protocol evaluate no longer takes is read from the scorecard, never scheduled: Flash-Next's
+			// MMLU-Pro under raw completion without demonstrations was a third cell on 2026-11-25, run with the leaderboard
+			// cell's arguments and credited apart from it (historical-protocol, SQA-529).
+			if _, err := evaluation.PromptingNamed(contract.Protocol); err != nil {
 				continue
 			}
 			// The cell already under the compared protocol takes the contract; else the first not yet taken that names

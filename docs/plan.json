@@ -20,23 +20,6 @@
       ]
     },
     {
-      "id": "historical-protocol",
-      "title": "A benchmark protocol the evaluator no longer runs is read from the scorecard and never scheduled, so no cell runs twice or is credited for another's run",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A benchmark protocol the evaluator no longer runs is read from the scorecard and never scheduled, so no cell runs twice or is credited for another's run",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAHistoricalProtocolIsReadNotRun$'",
-          "files": [
-            "cmd/validate",
-            "cmd/evaluate",
-            "internal/evaluation"
-          ],
-          "rationale": "Note: Files SQA-529: Flash-Next's scorecard keeps an MMLU-Pro reading under raw completion without demonstrations, a protocol the evaluator no longer runs; compareContracts turns that contract into a runnable cell, reacquireCommand gives it the arguments of the ordinary raw cell (demonstrations), so the 2026-11-25 run measured cells 95 and 105 alike, and cellKey's protocol lets the ordinary run earn credit for the historical cell. The historical reading stays readable and is not scheduled; credit is granted only for a protocol the evaluator ran. The MMLU-Pro selection fixture holds the three readings and the resulting evaluator arguments."
-        }
-      ]
-    },
-    {
       "id": "flashnext-projection-exact",
       "title": "Flash-Next's exact projection suite holds on whatever card memory its round is given, or the placement that flips it is named",
       "steps": [

@@ -1,7 +1,36 @@
 {
   "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
-  "items": [],
+  "items": [
+    {
+      "id": "moss-recipe-current",
+      "title": "A training proof stranded by its dataset's new identity names its recovery, and MOSS's proof is grounded again",
+      "steps": [
+        {
+          "id": "activate",
+          "title": "The MOSS route runs once over its pictures, activating the recipe over the media-bound dataset, so MOSS's training proof is grounded again",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go run ./cmd/validate -run -preflight -model model:sha256:fc5fd3cedb681bc901c4b03b9826339375bb94f7d960886833473213358f64c6 -validation training-proof -repo C:/Users/jeffm/overgo_data/overgodb-store",
+          "needs_card": true,
+          "rationale": "SQA-519's recovery, after the do step: the MOSS route runs once on the card over its committed pictures (fixtures/moss/training-pictures/pictures.tsv, -size 64, the proof's bounds), which bootstraps the recipe over the media-bound dataset, verifies it with the run and activates it, so the measurement's training-proof cell selects it and is grounded again. The card must be free of other processes; run after the measurement run at efa59bd59 ends. Needs the card though its check does not set OVERGO_CUDA_TEST.\n\nCheck: the preflight of MOSS's training-proof cell alone passes (validate -run -preflight -model MOSS's identity -validation training-proof)."
+        }
+      ]
+    },
+    {
+      "id": "moss-step-time",
+      "title": "A MOSS step's time is read between the completed steps of one draw, so the check measures no estimate below nothing",
+      "steps": [
+        {
+          "id": "draw",
+          "title": "A MOSS step's time is read between the completed steps of one draw, so the check measures no estimate below nothing",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestWhereAMossStepsTimeGoes$'",
+          "files": [
+            "internal/latentimage"
+          ],
+          "rationale": "SQA-520 (P2), checked by the lead against internal/latentimage/step_time_windows_model_test.go and the run at efa59bd59: valid, observed (the models lane failed it after all five draws, a request's own part read as -717 ms). It costs measured time: a failed lane ends the cycle before its cells. The check reads a guided step as the difference of two requests' walls divided by four and a request's own part as what is left of the 2-step wall, so two draws that vary by more than the estimate make it negative; the run's draws went beside another process on the card, which widened that spread. The change: a guided step and a pass are read between completed steps of one draw (processmeasure.WithSteps, which the sampler already tells), a request's own part as its first step's excess over a step, and the kernel launches and bytes to the card as before; the 4-step draw, there only to fit and cross-check the estimate, goes. First read how the sampler tells processmeasure.Stepped and ComfyUI's step reading.\n\nCheck: TestWhereAMossStepsTimeGoes on the card.\n\nNote: files set to internal/latentimage: the step that replaces do, whose check named a clock (TestNoClockEndsWorkInsideTheMachine), writes the test do would have"
+        }
+      ]
+    }
+  ],
   "decisions": [
     {
       "id": "skill-source-form",

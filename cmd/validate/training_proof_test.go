@@ -374,3 +374,21 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 		}
 	}
 }
+
+// TestAStrandedProofNamesItsRecovery holds a training proof whose recipe no route grounds to a refusal that says which
+// recipe it is and how it is freed (SQA-519): MOSS's recipe of 2026-11-25 read its pictures' manifest alone, its route
+// now identifies the pictures too, and the proof at efa59bd59 was refused under a label Wan's proof also bears, with no
+// word of the recipe or of the route run that activates its replacement.
+func TestAStrandedProofNamesItsRecovery(t *testing.T) {
+	t.Parallel()
+	stranded := ModelValidation{
+		Model: testutil.ArtifactID(t, artifact.KindModel, "moss"), Validation: trainingProof, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "moss"),
+		Location: "C:/models/MOSS/vae/diffusion_pytorch_model.safetensors", Directory: "C:/models/MOSS",
+	}
+	_, err := trainingRun(stranded, t.TempDir())
+	for _, said := range []string{"no cmd/train route grounds", stranded.Recipe.String(), stranded.Directory, "a run of that route over it activates the recipe the next proof selects"} {
+		if err == nil || !strings.Contains(err.Error(), said) {
+			t.Errorf("a stranded proof is refused with %v; want it to say %q", err, said)
+		}
+	}
+}

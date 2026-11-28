@@ -1,8 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -201,7 +203,8 @@ func aliasNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]str
 // proof run the model directory under the objective's alias: through train
 // -objective for text, and through its route for a table, or for a picture
 // the bridged pair's directory. It says why when no route grounds the cell's
-// recipe and no alias registers its objective, or the route lacks an input.
+// recipe and no alias registers its objective, naming the recipe and how it is
+// freed, or the route lacks an input.
 func trainingRun(cell ModelValidation, store string) (args []string, err error) {
 	at := slices.IndexFunc(trainingRoutes, func(route trainingRoute) bool { return route.grounding == cell.Grounding })
 	route := trainingRoute{arguments: append([]string{"-objective", cell.Objective}, objectiveProof...)}
@@ -213,7 +216,11 @@ func trainingRun(cell ModelValidation, store string) (args []string, err error) 
 	inputs := []string{"-model", filepath.Dir(cell.Location)}
 	switch {
 	case at < 0 && cell.Objective == "":
-		return nil, errors.New("no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective")
+		// A route whose committed data is identified anew grounds the recipe it bootstraps over it, not the one activated
+		// before: MOSS's recipe of 2026-11-25 read its pictures' manifest alone, and the proof at efa59bd59 was refused
+		// under the label diffusion_pytorch_model.safetensors, which Wan's proof also bears (SQA-519).
+		return nil, fmt.Errorf("no cmd/train route grounds recipe %s of %s: its objective reads data no route's committed data is identified as now, and no alias registers it for train -objective; "+
+			"if its route's data is identified anew, a run of that route over it activates the recipe the next proof selects", cell.Recipe, cmp.Or(cell.Directory, cell.Location))
 	case cell.Location == "":
 		return nil, errors.New("a training run needs the model's weights")
 	case at < 0 && cell.Route == tabularRoute:

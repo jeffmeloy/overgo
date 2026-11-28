@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataroot"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
@@ -250,6 +252,31 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 	}
 	if _, err := os.Stat(stray); err != nil {
 		t.Fatalf("the change the cycle checkout held is gone: %v", err)
+	}
+}
+
+// TestTheCycleCheckoutHoldsTheDataRoots holds the measurement's cycle checkout to the main checkout's data roots, which
+// its lanes' tests open models through (cycle-roots): moved to a commit, the first time and again, it holds the main
+// checkout's local-models.json, ignored as there, so the next move finds it clean. The replay test had found none in
+// the run at efa59bd59 and failed the models lane, which ends the cycle before its cells.
+func TestTheCycleCheckoutHoldsTheDataRoots(t *testing.T) {
+	t.Parallel()
+	repository := t.TempDir()
+	git := func(arguments ...string) string { return gitFixture(t, repository, arguments...) }
+	git("init", "-q", "-b", "master")
+	testcheck.NoError(t, os.WriteFile(filepath.Join(repository, ".gitignore"), []byte("local-models.json\n"), 0o600))
+	git("add", ".gitignore")
+	git("commit", "-q", "-m", "measured")
+	roots := []byte(`{"models": "C:/data/models"}`)
+	testcheck.NoError(t, os.WriteFile(filepath.Join(repository, dataroot.ConfigFile), roots, 0o600))
+	improver := improvement{root: repository}
+	for _, move := range []string{"the first", "the next"} {
+		testcheck.NoError(t, improver.inCycle(git("rev-parse", "HEAD"), func(checkout string) error {
+			if held, err := os.ReadFile(filepath.Join(checkout, dataroot.ConfigFile)); err != nil || !bytes.Equal(held, roots) {
+				t.Errorf("%s move left the cycle checkout's data roots %q, %v; want the main checkout's %q", move, held, err, roots)
+			}
+			return nil
+		}))
 	}
 }
 

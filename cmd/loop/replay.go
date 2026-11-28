@@ -200,6 +200,13 @@ func moveWithRoots(root, checkout, commit string) error {
 	if err := moveTree(root, checkout, commit); err != nil {
 		return err
 	}
+	return giveRoots(root, checkout)
+}
+
+// giveRoots writes into checkout the data roots the main checkout at root reads (dataroot.ConfigFile), and is the error
+// reading them when root holds none: the replay's checkout, the lanes' on a row's close and the measurement's cycle
+// checkout, whose replay test found none at efa59bd59 (cycle-roots).
+func giveRoots(root, checkout string) error {
 	roots, err := os.ReadFile(filepath.Join(root, dataroot.ConfigFile))
 	if err != nil {
 		return err

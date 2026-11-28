@@ -402,19 +402,30 @@ func (w improvement) inCycle(commit string, run func(checkout string) error) (er
 // first use. A checkout holding changes refuses, as does one holding an
 // ignored file that commit tracks: a run left them, and nothing here
 // discards them. Nothing removes the checkout either, so what a run leaves
-// among its ignored files stays, as it does in the main checkout.
+// among its ignored files stays, as it does in the main checkout. It holds the
+// main checkout's data roots, where it has them (giveRoots), which the lanes'
+// tests open models through.
 func (w improvement) moveCycle(checkout, commit string) error {
-	if _, err := os.Lstat(filepath.Join(checkout, ".git")); errors.Is(err, fs.ErrNotExist) {
-		return gitWrite(w.root, "worktree", "add", "--quiet", "--detach", checkout, commit)
+	moved := func() error {
+		if _, err := os.Lstat(filepath.Join(checkout, ".git")); errors.Is(err, fs.ErrNotExist) {
+			return gitWrite(w.root, "worktree", "add", "--quiet", "--detach", checkout, commit)
+		}
+		status, err := gitauthority.Query(context.Background(), checkout, "status", "--porcelain")
+		if err != nil {
+			return err
+		}
+		if len(bytes.TrimSpace(status)) > 0 {
+			return fmt.Errorf("the cycle checkout %s holds changes a run left; keep or remove them by hand:\n%s", checkout, bytes.TrimRight(status, "\n"))
+		}
+		return gitWrite(checkout, "checkout", "--quiet", "--detach", "--no-overwrite-ignore", commit)
 	}
-	status, err := gitauthority.Query(context.Background(), checkout, "status", "--porcelain")
-	if err != nil {
+	if err := moved(); err != nil {
 		return err
 	}
-	if len(bytes.TrimSpace(status)) > 0 {
-		return fmt.Errorf("the cycle checkout %s holds changes a run left; keep or remove them by hand:\n%s", checkout, bytes.TrimRight(status, "\n"))
+	if err := giveRoots(w.root, checkout); !errors.Is(err, fs.ErrNotExist) {
+		return err
 	}
-	return gitWrite(checkout, "checkout", "--quiet", "--detach", "--no-overwrite-ignore", commit)
+	return nil
 }
 
 // cycleState is how far the cycle for one key got, kept beside the cycle

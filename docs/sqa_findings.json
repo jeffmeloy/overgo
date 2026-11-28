@@ -1,8 +1,8 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "The committed plan has no implementation rows. I would keep SQA-519 first: the active MOSS training proof fails at admission on unchanged fixtures, and the existing trainer can verify the replacement recipe once. I would take SQA-520 next so the MOSS timing check can distinguish a slower draw from a bad estimate. The six-section workflow check passed in the same run.",
-    "Before repeating the GPU checks, I would check how much card memory is available to their processes. Of the first 13 failed tests at efa59bd59, 11 reported insufficient device capacity and together ran for about 15 min 41 s. The other two need separate readings: SenseNova took 214.197 s against its 206.010 s reference, and the MOSS timing check rejected a negative estimate after all five draws finished. These failures do not give a comparable new MOSS workflow time."
+    "Master has the two GPU steps in the order I would take them. The diagnostic landed at 46670f0aa. For moss-recipe-current/activate, compare the verified run and gate from the one planned training run with the newly active recipe ID. A passing preflight alone can resolve a different recipe for the same pictures (SQA-519).",
+    "Keep moss-step-time/draw next. Its predecessor took 2 min 10 s and rejected a negative setup estimate after five completed draws. Timing successive steps within one draw addresses that failure. The excess time in the first step is still an estimate of setup. SQA-521 can follow both rows unless an unrelated fixture blocks the targeted proof."
   ],
   "branch": "master",
   "findings": [
@@ -13,13 +13,14 @@
         "cmd/validate/training_proof.go",
         "cmd/validate/run.go",
         "cmd/train/route_moss_windows.go",
+        "cmd/train/shared_run.go",
         "internal/trainingworkflow/media_manifest.go",
         "internal/trainingworkflow/bootstrap_recipe.go",
         "internal/trainingworkflow/session_observation.go"
       ],
-      "input": "Run validation with the November 25 active MOSS training recipe 0349b5a91a74 and its unchanged two-picture fixture after the dataset identity change in bae839d75. Its stored flow-matching objective d160cb7afb6b names the manifest-only dataset 22d7d57a34bc. PictureManifest now identifies the same fixture, including its pictures, as 40d43e8337e2.",
-      "expected": "Keep the old recipe and its evidence bound to their original inputs. Use the existing MOSS trainer and verification/activation path to establish the recipe for the media-bound dataset once, then select that recipe for subsequent proofs. Until it is available, identify the affected MOSS recipe and the recovery needed at admission.",
-      "actual": "At efa59bd59 preflight refused one of 105 cells with no training route or objective alias. Its label, diffusion_pytorch_model.safetensors training-proof, also appeared on a successful Wan proof. The November 25 scorecard and proof transcript identify both models; the stored MOSS recipe and objective confirm the old digest. groundTraining looks up only the current dataset identity and has no alias fallback for flow matching. trainingRun therefore stops before the MOSS trainer can bootstrap the replacement. Retrying with the same active recipe gives the same refusal. The changed identity is intentional; the missing transition leaves a previously runnable proof stranded."
+      "input": "The November 25 MOSS recipe 0349b5a91a74 names manifest-only dataset 22d7d57a34bc. Its unchanged two pictures now identify dataset 40d43e8337e2. For the replacement proof, consider an active recipe for the current model and pictures with a valid optimizer policy different from the MOSS trainer's built-in policy.",
+      "expected": "Preserve the old proof. Activate the media-bound recipe once through the existing trainer and check that its stored gate and run name the newly active recipe. For a requested proof, compare the selected recipe with the route's immutable recipe before reporting readiness, publishing another candidate or starting GPU work.",
+      "actual": "Observed at efa59bd59, the old recipe failed preflight. Master 46670f0aa now names the affected recipe and its recovery. A separate case follows from source: groundTraining matches the dataset, trainingRun omits the selected recipe ID on the MOSS route, and openSessionOver binds a recipe with the built-in optimizer. Preflight can report ready for the selected recipe while admitting the other one. In full acquisition VerifyGateRun checks the selected ID only after the trainer finishes. No run in this review showed the wrong recipe activating."
     },
     {
       "id": "SQA-520",
@@ -33,6 +34,19 @@
       "input": "Run TestWhereAMossStepsTimeGoes at the Ultra text section's 2368 by 1344 size. After warm-up it draws separate 2-, 4- and 6-step guided requests and a 6-step conditional request. If the 6-step guided wall exceeds three times the 2-step wall, the estimated setup time is negative even when every draw succeeds.",
       "expected": "Compare elapsed time between completed steps in one draw with the corresponding ComfyUI progress interval. The sampler already reports step completion through processmeasure.Stepped. Keep the host-transfer and launch counts and the independent output and whole-workflow checks. Report setup or pass overhead only when measured at its own boundaries. The 2- and 4-step draws used solely to fit and cross-check the estimate can then go.",
       "actual": "At efa59bd59 all five draws finished, but the check failed after 2 min 10 s. It reported -717 ms of request setup and -497 ms beside the two passes of a guided step. TestWhereAMossStepsTimeGoes obtains the guided step by subtracting the walls of separate 6- and 2-step requests and dividing by four, then subtracts two such steps from the 2-step wall. Its strict positive-setup assertion fails on that estimate before its 4-step check runs. The recorded ComfyUI step uses elapsed time between progress events in one request."
+    },
+    {
+      "id": "SQA-521",
+      "severity": "P2",
+      "files": [
+        "cmd/validate/main.go",
+        "cmd/validate/scorecard.go",
+        "cmd/validate/bound_records.go",
+        "cmd/validate/projection_proof.go"
+      ],
+      "input": "Request only the MOSS training proof with validate -run -preflight -model <MOSS ID> -validation training-proof. Its model, active recipe and pictures are available, but docs/verification/fixtures/qwen27/suite.json is absent.",
+      "expected": "Select the requested proof before reading its prerequisites. A MOSS training proof with all its own inputs should reach admission. Keep each selected proof's real cross-model dependencies and the full run's projection checks.",
+      "actual": "Source counterexample at 46670f0aa. chosenThenBound binds all registered cells before OnlyModel selects MOSS. bindCells calls groundProjection, which reads the Qwen suite before checking for any projection cell. Its file error ends validation before the MOSS trainer is asked whether it can run. The recorded MOSS refusal in SQA-519 had a different cause."
     }
   ],
   "master_lead_triage": {
@@ -58,7 +72,7 @@
       }
     }
   },
-  "next_finding_number": 521,
+  "next_finding_number": 522,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

@@ -58,7 +58,7 @@ func TestCycleReportsWhatItCreditedAndEachPhaseWall(t *testing.T) {
 // leaves the others' numbers sound. The cycle's error names the check that failed.
 func TestChecksRunBeforeTheCells(t *testing.T) {
 	t.Parallel()
-	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells -reached", "-scorecard -publish"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes -reached", "-run -cells -reached", "-scorecard -publish"
 	for failing, want := range map[string][]string{
 		preflight: {preflight, lanes, cells, publish, "filed"},
 		lanes:     {preflight, lanes},
@@ -91,7 +91,7 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 		err := measurePhases(state, key, io.Discard, nil, nil, validate)
 		return ran, err
 	}
-	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells -reached", "-scorecard -publish"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes -reached", "-run -cells -reached", "-scorecard -publish"
 	for _, step := range []struct {
 		name, key, fail string
 		want            []string
@@ -215,7 +215,7 @@ func TestTheGapsAreFiledOnceTheScorecardPublishes(t *testing.T) {
 		}
 		return nil
 	}
-	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells -reached", "-scorecard -publish"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes -reached", "-run -cells -reached", "-scorecard -publish"
 	for _, step := range []struct {
 		name, key, fail string
 		want            []string
@@ -244,7 +244,7 @@ func TestTheGapsAreFiledOnceTheScorecardPublishes(t *testing.T) {
 // lanes, which had run again for 9 h 14 min in the close of 2026-11-25.
 func TestARetryRunsNoLanesItPassed(t *testing.T) {
 	t.Parallel()
-	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells -reached", "-scorecard -publish"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes -reached", "-run -cells -reached", "-scorecard -publish"
 	state := filepath.Join(t.TempDir(), cycleStateFile)
 	var ran []string
 	failing := lanes
@@ -263,6 +263,21 @@ func TestARetryRunsNoLanesItPassed(t *testing.T) {
 	failing = ""
 	if got, want := retry(), []string{preflight, publish}; !slices.Equal(got, want) {
 		t.Errorf("a retry after the publication failed: ran %q, want %q, the lanes credited", got, want)
+	}
+}
+
+// TestAMeasurementRunsOnlyTheLongerTestsItsChangesReach holds a measurement's longer tests to what its changes reach
+// (measure-reached): the phase asks validate for the lanes -reached, as a row's close does, so a test whose kept pass is
+// current is not run again. Asked whole, they took 7 h 35 min at efa59bd59, most of their tests' passes current there.
+func TestAMeasurementRunsOnlyTheLongerTestsItsChangesReach(t *testing.T) {
+	t.Parallel()
+	var asked [][]string
+	_ = measurePhases(filepath.Join(t.TempDir(), cycleStateFile), "commit|store|obligations", io.Discard, nil, nil, func(_ []string, arguments ...string) error {
+		asked = append(asked, arguments)
+		return nil
+	})
+	if !slices.ContainsFunc(asked, func(arguments []string) bool { return slices.Equal(arguments, []string{"-run", "-lanes", "-reached"}) }) {
+		t.Errorf("a measurement asked validate for %q; want its longer tests as -run -lanes -reached", asked)
 	}
 }
 

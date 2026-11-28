@@ -54,13 +54,13 @@
     "head": "efa59bd5922f60635af122cf728e6e1830647355",
     "findings": {
       "SQA-519": {
-        "action": "implemented",
+        "action": "declined",
         "rows": [
           "moss-recipe-current/do",
           "moss-recipe-current/activate"
         ],
-        "answered": "47f0c22ff388",
-        "note": "Answered by the lead on 2026-11-27 at be3e42bb3: valid, observed (the preflight at efa59bd59 refused MOSS's training-proof cell; the lead had traced it to training-identity/do's new identity before the finding, memory lessons). Filed as moss-recipe-current: do names a stranded proof's recipe, dataset and recovery at admission; activate runs the MOSS route once on the card, after the measurement run, which establishes the recipe over the media-bound dataset through the existing trainer, first of the rows. Implemented 2026-11-28 by moss-recipe-current/do (46670f0aa) and /activate, the landing that carries this answer: the MOSS route ran once on the card over its committed pictures at b8fc459b5, which published, verified and activated recipe a7f5c5513e68 over the media-bound dataset (run 8f3056687837), and the preflight of MOSS's training proof alone is ready under it, for the review's recheck."
+        "answered": "5b3a64de662e",
+        "note": "Answered again by the lead on 2026-11-28 at 1a830d10c, for the finding as rewritten after c0f0b56d3: the first part is met and observed (moss-recipe-current/activate ran the MOSS route once at b8fc459b5; its run 8f3056687837 verified and activated recipe a7f5c5513e68, and the preflight of MOSS's proof alone reports that same recipe active and ready). The residual, a selected recipe other than the one the route bootstraps, is valid from source and not observed. Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): MOSS's active recipe is the route's own, no other recipe for its pictures exists to be selected, and a mismatch in a full run is refused by VerifyGateRun after the trainer, so no user meets it in normal use."
       },
       "SQA-520": {
         "action": "implemented",
@@ -69,6 +69,12 @@
         ],
         "answered": "3e2a419990b3",
         "note": "Answered by the lead on 2026-11-27 at be3e42bb3: valid, observed (the models lane failed TestWhereAMossStepsTimeGoes at efa59bd59 on a -717 ms request part, its draws beside another process on the card, which widened the spread the estimate cannot bear). A failed lane ends the cycle before its cells, so it costs measured time. Filed as moss-step-time/draw: a step and a pass read between completed steps of one draw (processmeasure.WithSteps). Implemented 2026-11-28 by moss-step-time/draw, the landing that carries this answer: a guided step and a pass are each the median time between completed steps of one draw (processmeasure.WithSteps), the first step is read as itself, and the 4-step draw and every figure taken across draws are gone; on the card the six steps completed 1.32 s apart within an 8.08 s sampling, a guided step 1.322 s, a pass 0.670 s, ComfyUI's step 1.113 s, for the review's recheck."
+      },
+      "SQA-521": {
+        "action": "deferred",
+        "rows": [],
+        "answered": "52f59debda75",
+        "note": "Answered by the lead on 2026-11-28 at 1a830d10c: valid from source (bindCells grounds projection cells, reading the Qwen suite, before -model narrows the run). Not observed: docs/verification/fixtures/qwen27/suite.json is in the tree, and the MOSS-only preflight at c0f0b56d3 reached admission. A defect from source alone that no check passes without checking, so P3 by the severity rule agreed on 2026-11-13: deferred to the row that next touches cmd/validate's projection grounding, which reads the suite only for a projection cell there."
       }
     }
   },

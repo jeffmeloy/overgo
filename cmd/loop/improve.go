@@ -534,7 +534,9 @@ func measureScorecard(checkout, store string, published func() error, run *runRe
 // the cells and the publication, in that order, skipping the lanes, the cells and the
 // publication the state at statePath records as passed for that key. The
 // preflight and the lanes are the checks the cells depend on: the preflight always runs, since it measures nothing,
-// and the lanes once a key, so a retry runs no lane it has passed (SQA-502).
+// and the lanes once a key, so a retry runs no lane it has passed (SQA-502). The lanes run what the changes since each
+// test's kept pass reach (validate -reached), as a row's close runs them, so a test whose pass is current is not run
+// again: run whole, they took 7 h 35 min at efa59bd59, most of their tests' passes current there (measure-reached).
 // A lane that fails ends the cycle there, since numbers measured on a build
 // its tests refuse are spent before they are read. A cell the preflight
 // refuses is named before any cell is measured, and the cycle goes on: one
@@ -579,7 +581,7 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 	if state.Lanes {
 		credit("lanes")
 	} else {
-		if state.Lanes = phase("lanes", "-run", "-lanes"); !state.Lanes {
+		if state.Lanes = phase("lanes", "-run", "-lanes", "-reached"); !state.Lanes {
 			return errors.Join(failed...)
 		}
 		remember()

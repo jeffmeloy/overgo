@@ -1,23 +1,7 @@
 {
   "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "moss-step-time",
-      "title": "A MOSS step's time is read between the completed steps of one draw, so the check measures no estimate below nothing",
-      "steps": [
-        {
-          "id": "draw",
-          "title": "A MOSS step's time is read between the completed steps of one draw, so the check measures no estimate below nothing",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/latentimage -count=1 -timeout=0 -run '^TestWhereAMossStepsTimeGoes$'",
-          "files": [
-            "internal/latentimage"
-          ],
-          "rationale": "SQA-520 (P2), checked by the lead against internal/latentimage/step_time_windows_model_test.go and the run at efa59bd59: valid, observed (the models lane failed it after all five draws, a request's own part read as -717 ms). It costs measured time: a failed lane ends the cycle before its cells. The check reads a guided step as the difference of two requests' walls divided by four and a request's own part as what is left of the 2-step wall, so two draws that vary by more than the estimate make it negative; the run's draws went beside another process on the card, which widened that spread. The change: a guided step and a pass are read between completed steps of one draw (processmeasure.WithSteps, which the sampler already tells), a request's own part as its first step's excess over a step, and the kernel launches and bytes to the card as before; the 4-step draw, there only to fit and cross-check the estimate, goes. First read how the sampler tells processmeasure.Stepped and ComfyUI's step reading.\n\nCheck: TestWhereAMossStepsTimeGoes on the card.\n\nNote: files set to internal/latentimage: the step that replaces do, whose check named a clock (TestNoClockEndsWorkInsideTheMachine), writes the test do would have"
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "skill-source-form",

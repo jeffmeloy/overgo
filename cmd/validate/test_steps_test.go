@@ -117,3 +117,23 @@ func TestALaneRunTestByTestIsJudgedAsItsPackages(t *testing.T) {
 		t.Errorf("the lanes run = %v; want the passing lane acquired and the failing lane's failure named", err)
 	}
 }
+
+// TestAPackageWhosePassIsKeptPassesBesideItsProbes holds a lane run on kept passes to the passes its packages hold
+// (SQA-523): a package whose one test's pass is current, left out, beside an optional probe that declares itself
+// inapplicable, passes its lane. Left out, the pass lent the package nothing, the probe's exclusion answered alone, and
+// the lane, inapplicable, ended the measurement before its cells, though the package run whole passes.
+func TestAPackageWhosePassIsKeptPassesBesideItsProbes(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.26\n"), 0o644))
+	elsewhere := fmt.Sprintf("func TestElsewhere(t *testing.T) {\n\tt.Attr(%q, %q)\n\tt.Skip(%q)\n}\n", testskip.Key, testskip.KindInapplicable, testskip.Inapplicable+": a fixture of another lane")
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(root, "passes"), 0o755))
+	source := "package passes\n\nimport \"testing\"\n\nfunc TestPasses(t *testing.T) {}\n\n" + elsewhere
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "passes", "passes_test.go"), []byte(source), 0o644))
+	suite := SelectedSuite{Lane: "kept", Arguments: []string{"test", "-count=1", "./passes"}, Each: [][]string{{"test", "-count=1", "./passes"}},
+		Current: func(_, test string) bool { return test == "TestPasses" }}
+	var out bytes.Buffer
+	if err := executeRun(t.Context(), &out, root, "C:/stores/selected", nil, Plan{Suites: []SelectedSuite{suite}}, scopeLanes); err != nil {
+		t.Fatalf("a package whose test's pass is kept, beside a probe that declares itself inapplicable, failed its lane: %v\n%s", err, out.String())
+	}
+}

@@ -1,46 +1,45 @@
 {
   "advisory_notice": "All SQA findings, rankings and assessments are recommendations. Master decides whether, when and how to act through docs/plan.json.",
   "priority_assessment": [
-    "Both planned MOSS steps landed. Run 8f3056687837 verified recipe a7f5c5513e68, and the corrected timing check recorded a 1.322 s median guided step against ComfyUI's 1.113 s average between progress events. This gives us a sampling measurement. Whole-workflow parity still needs a comparable section run.",
-    "Master at 1a830d10c has no remaining implementation rows. I would take the proposed measure-reached/do next. The last measurement spent 7 h 35 min in the longer tests and stopped before measuring cells. Reusing still-valid passes while rerunning failed, missing or affected tests addresses that cost. I would then take SQA-522 before another training proof: the last MOSS recovery trained twice to produce one verification."
+    "Master landed measure-reached/do and proof-revision/do. With no implementation rows left, the measurement at 2004b4702 passed preflight in 11 min 4 s and entered the longer tests. I would keep its results and take SQA-523 first. Losing a valid package pass when an optional probe skips can still stop the cycle before any MOSS cell is measured. The previous 7 h 35 min in the longer tests is a baseline; this run has yet to establish a saving.",
+    "I would keep SQA-522 second. Acquisition now rejects an unverifiable revision before training. Preflight still reports ready for that same input because it reads a flag the command has already consumed. Using the preflight state that Ready already trusts would align the two verdicts. The check can exercise command initialization without running the model."
   ],
   "branch": "master",
   "findings": [
+    {
+      "id": "SQA-523",
+      "severity": "P2",
+      "files": [
+        "cmd/validate/test_steps.go",
+        "cmd/validate/run.go",
+        "cmd/validate/lane_reach.go",
+        "cmd/validate/test_steps_test.go",
+        "cmd/loop/improve.go"
+      ],
+      "input": "Run the models lane with -reached when all applicable tests in internal/mediacapability have current passes and its only remaining test is TestMediaStagePeaksAreRecorded. With OVERGO_PROBE_TEST unset it declares itself inapplicable. The retained results at 2004b4702 include a pass for the sibling TestStagePeaksCoverEveryMediaFamily.",
+      "expected": "A valid retained pass should count for its own package exactly as a fresh pass would. Carry that fact from testSteps into laneVerdict. Keep failures blocking, packages with exclusions alone inapplicable, and passes confined to their package. The existing package-verdict fixture covers these distinctions and can also use a retained pass.",
+      "actual": "Source counterexample at 2004b4702. testSteps drops each current pass and returns one count for the entire lane. laneVerdict sees only the optional probe's exclusion, judges its package inapplicable, and validate returns an error. measurePhases then stops before cells. Running the package whole passes under the same inputs. The same case fits the existing passes fixture when TestPasses is current and TestElsewhere skips. The current full run had no final lane verdict at review time."
+    },
     {
       "id": "SQA-522",
       "severity": "P2",
       "files": [
         "cmd/train/routes.go",
-        "cmd/train/route_moss_windows.go",
-        "cmd/train/shared_run.go",
-        "internal/trainingworkflow/session_observation.go",
-        "internal/runrecord/verifying_commit.go",
-        "cmd/validate/run.go"
+        "internal/clioptions/command.go",
+        "cmd/train/main.go",
+        "cmd/train/routes_test.go",
+        "cmd/validate/run.go",
+        "internal/trainingworkflow/session_observation.go"
       ],
-      "input": "Request a MOSS training proof with its valid model and pictures when runrecord.ExecutableCodeCommit cannot identify the executable's revision. A binary marked as built from modified source is one example.",
-      "expected": "For an explicit proof, use the existing revision check during admission, before preflight reports ready or training uses the GPU. A proof that cannot produce its required verification should return the revision error. Keep ordinary exploratory training available and retain the final check on the evidence.",
-      "actual": "The recovery recorded in c0f0b56d3 trained with an uncommitted test in the checkout, produced no verification and repeated training on a clean checkout. Source explains the late verdict. Observer.Admit calls Ready before checking the revision. After training, Observer.Verify prints the revision error and returns nil. The direct proof can therefore exit successfully without its verification. An acquiring validator detects the missing handoff only after the trainer exits."
+      "input": "Validate only the MOSS training proof with valid pictures, model and recipe, using a trainer whose executable revision cannot be verified. The normal preflight sets OVERGO_PREFLIGHT=1. Only the later acquisition sets OVERGO_TRAIN_VERIFICATION.",
+      "expected": "Have provable use clioptions.Preflighting(), the state Ready uses, to return the revision error before admission. Exercise the existing refusal check through command initialization. Keep the acquisition check and the intended warning for a proof run by hand.",
+      "actual": "Source counterexample at 2004b4702. clioptions.Main reads and clears OVERGO_PREFLIGHT before running train. provable rereads the now-empty variable and only warns. Observer.Admit then calls Ready, so the process exits successfully and validate counts the proof as ready. Acquisition sees its handoff variable and correctly refuses before GPU work. TestAProofThatCannotVerifyIsRefusedFirst sets the environment and calls runRoute directly, bypassing Main. The earlier 2 min 17 s of preparation plus three training steps were observed before this change."
     }
   ],
   "master_lead_triage": {
     "at": "2026-11-27",
     "head": "efa59bd5922f60635af122cf728e6e1830647355",
     "findings": {
-      "SQA-519": {
-        "action": "declined",
-        "rows": [
-          "moss-recipe-current/do",
-          "moss-recipe-current/activate"
-        ],
-        "answered": "5b3a64de662e",
-        "note": "Answered again by the lead on 2026-11-28 at 1a830d10c, for the finding as rewritten after c0f0b56d3: the first part is met and observed (moss-recipe-current/activate ran the MOSS route once at b8fc459b5; its run 8f3056687837 verified and activated recipe a7f5c5513e68, and the preflight of MOSS's proof alone reports that same recipe active and ready). The residual, a selected recipe other than the one the route bootstraps, is valid from source and not observed. Declined by the lead's rule for a second round on a cure (owner, 2026-11-23): MOSS's active recipe is the route's own, no other recipe for its pictures exists to be selected, and a mismatch in a full run is refused by VerifyGateRun after the trainer, so no user meets it in normal use."
-      },
-      "SQA-521": {
-        "action": "deferred",
-        "rows": [],
-        "answered": "52f59debda75",
-        "note": "Answered by the lead on 2026-11-28 at 1a830d10c: valid from source (bindCells grounds projection cells, reading the Qwen suite, before -model narrows the run). Not observed: docs/verification/fixtures/qwen27/suite.json is in the tree, and the MOSS-only preflight at c0f0b56d3 reached admission. A defect from source alone that no check passes without checking, so P3 by the severity rule agreed on 2026-11-13: deferred to the row that next touches cmd/validate's projection grounding, which reads the suite only for a projection cell there."
-      },
       "SQA-522": {
         "action": "implemented",
         "rows": [
@@ -48,10 +47,18 @@
         ],
         "answered": "57846ae91e39",
         "note": "Answered by the lead on 2026-11-28 at 5b8dbb6fc: valid, observed by the lead at c0f0b56d3 (a -proof run from a checkout holding the next row's test trained on the card, then printed that it verified nothing and exited 0). Filed as proof-revision/do: a run given -proof asks for its code revision right after its flags are parsed, before admission says it is ready or the card is used. Implemented 2026-11-28 by proof-revision/do, the landing that carries this answer: a -proof run the validator awaits (its preflight, OVERGO_PREFLIGHT, or its acquisition, OVERGO_TRAIN_VERIFICATION) asks for its code revision once its flags are read and is refused with that reason before admission says it is ready or the card is used; a -proof run by hand is told before it starts and trains as before, since the gate's own candidate checkout is a modified tree its tests run proofs in (TestAProofThatCannotVerifyIsRefusedFirst), for the review's recheck."
+      },
+      "SQA-523": {
+        "action": "implemented",
+        "rows": [
+          "lanes-kept-pass/do"
+        ],
+        "answered": "db8c1fa39f05",
+        "note": "Answered by the lead on 2026-11-28 at 2004b4702: valid from source, a verdict that ends the measurement before its cells on a package that passes (testSteps counted the tests it left out for the lane alone, so a package left with its optional probes was inapplicable). Filed and implemented 2026-11-28 by lanes-kept-pass/do, the landing that carries this answer: testSteps counts what it leaves out by package, and laneVerdict counts a package with a test left out as current as holding that pass (TestAPackageWhosePassIsKeptPassesBesideItsProbes), for the review's recheck."
       }
     }
   },
-  "next_finding_number": 523,
+  "next_finding_number": 524,
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
   "schema_version": 3

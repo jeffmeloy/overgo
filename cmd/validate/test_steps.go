@@ -31,8 +31,10 @@ type laneStep struct {
 // environment, so the card and the test turn pass to a waiting commit or probe between tests; in the run at
 // c79cfc121 one package held them 1 h 26 min. A test current says is current is left out (lanes-record), and current
 // is nil where every test runs. A package that cannot be listed, or lists no test, runs whole, its run saying what
-// failed. The steps run in the lane's own order, and left is how many tests were left out.
-func testSteps(ctx context.Context, root string, packages [][]string, environment []string, current func(pkg, test string) bool) (steps []laneStep, left int) {
+// failed. The steps run in the lane's own order, and left is how many tests of each package, by its place, were left
+// out, each a pass the package holds (laneVerdict).
+func testSteps(ctx context.Context, root string, packages [][]string, environment []string, current func(pkg, test string) bool) (steps []laneStep, left map[int]int) {
+	left = map[int]int{}
 	for pkg, arguments := range packages {
 		names, err := listedTests(ctx, root, arguments, environment)
 		if err != nil || len(names) == 0 {
@@ -41,7 +43,7 @@ func testSteps(ctx context.Context, root string, packages [][]string, environmen
 		}
 		for _, name := range names {
 			if current != nil && current(arguments[len(arguments)-1], name) {
-				left++
+				left[pkg]++
 				continue
 			}
 			steps = append(steps, laneStep{arguments: oneTest(arguments, name), pkg: pkg, test: name})
@@ -79,15 +81,18 @@ func oneTest(arguments []string, name string) []string {
 // exclusions alone answered, and fails when a step failed; a pass in one package lends another nothing. The lane fails
 // when a package failed, its error then wrapping no errInapplicable, so a failure is never reported as inapplicable;
 // else it is inapplicable when a package was. Judged test by test, a package whose one test declared itself
-// inapplicable had been an inapplicable lane, and one with a failure beside such a test an inapplicable lane too.
-func laneVerdict(steps []laneStep, verdicts []error) error {
+// inapplicable had been an inapplicable lane, and one with a failure beside such a test an inapplicable lane too. A
+// package a test of which was left out as current (testSteps' left) holds that pass: left out, a package's passes had
+// left its optional probes, which declare themselves inapplicable, to answer for it, and the lane, inapplicable, ended
+// the measurement before its cells (SQA-523).
+func laneVerdict(steps []laneStep, verdicts []error, left map[int]int) error {
 	var failed, declared, halted []error
 	packages := 0
 	for _, step := range steps {
 		packages = max(packages, step.pkg+1)
 	}
 	for pkg := range packages {
-		passed, broke, excluded, yielded := false, []error(nil), []error(nil), []error(nil)
+		passed, broke, excluded, yielded := left[pkg] > 0, []error(nil), []error(nil), []error(nil)
 		for index, step := range steps {
 			switch verdict := verdicts[index]; {
 			case step.pkg != pkg:

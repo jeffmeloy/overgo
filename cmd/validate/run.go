@@ -264,10 +264,15 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		// and a commit waited 81 min for a package that held the card (lanes-yield). The lane is judged by its packages,
 		// each once over its steps (laneVerdict).
 		steps := []laneStep{{arguments: suite.Arguments}}
+		var left map[int]int
 		if len(suite.Each) > 0 {
-			var left int
-			if steps, left = testSteps(ctx, root, suite.Each, suite.Environment, suite.Current); left > 0 {
-				fmt.Fprintf(output, "validate -run: cycle lane %s leaves out %d tests whose passes nothing changed since reaches\n", suite.Lane, left)
+			steps, left = testSteps(ctx, root, suite.Each, suite.Environment, suite.Current)
+			total := 0
+			for _, count := range left {
+				total += count
+			}
+			if total > 0 {
+				fmt.Fprintf(output, "validate -run: cycle lane %s leaves out %d tests whose passes nothing changed since reaches\n", suite.Lane, total)
 			}
 		}
 		runs, verdicts := make([]func() error, len(steps)), make([]error, len(steps))
@@ -322,7 +327,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		}
 		err := each("the cycle lane "+suite.Lane, outer, runs)
 		// A failure to take a turn stands with the packages' failures, never beside an inapplicable verdict that would hide it.
-		verdict := laneVerdict(steps, verdicts)
+		verdict := laneVerdict(steps, verdicts, left)
 		switch {
 		case err == nil:
 			err = verdict

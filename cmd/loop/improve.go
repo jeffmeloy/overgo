@@ -201,13 +201,11 @@ func improvementFor(store string) improvement {
 		// The measurement holds the lanes as a close's runner does, outside the card's turn (holdingTheLanes).
 		measure: func(checkout string, published func() error) error {
 			return holdingTheLanes(loopWorktree, os.Stdout, func() error {
-				return landing.HoldLaneTurn(measurementPhases, func() error { return measureScorecard(checkout, store, published, run) })
+				return landing.HoldLaneTurn(measurementPhases, func() error { return measureScorecard(checkout, store, published, run, validateTo) })
 			}, startLanesRunner)
 		},
 		fill: func(checkout string) error {
-			return landing.HoldLaneTurn(measurementPhases, func() error {
-				return validateTo(os.Stdout, checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
-			})
+			return landing.HoldLaneTurn(measurementPhases, func() error { return fillCycle(checkout, store, run, validateTo) })
 		},
 	}
 }
@@ -506,8 +504,13 @@ func obligationsDigest(plan []byte) (string, error) {
 // cell. A failed validation does not discard the others' numbers: the
 // scorecard publishes regardless and the failure is returned beside it with
 // the final error the command wrote to its error file, so the cycle names
-// each cell or check validate -run acquired nothing for, and why.
-func measureScorecard(checkout, store string, published func() error, run *runRecorder) error {
+// each cell or check validate -run acquired nothing for, and why. Every
+// validate it starts (start, validateTo in a run) is given the run's record,
+// which keeps the digests of the files its cells bind, so an unchanged file is
+// hashed once a run: the dry run that keys the cycle had been started without
+// it and hashed every model file again beside the preflight, 311 paths and
+// 233.8 GB by size at 3a7b3877d (SQA-525).
+func measureScorecard(checkout, store string, published func() error, run *runRecorder, start validateStart) error {
 	head, err := gitauthority.Query(context.Background(), checkout, "rev-parse", "HEAD")
 	if err != nil {
 		return err
@@ -517,7 +520,7 @@ func measureScorecard(checkout, store string, published func() error, run *runRe
 		return err
 	}
 	var plan bytes.Buffer
-	if err := validateTo(&plan, checkout, store, nil); err != nil {
+	if err := start(&plan, checkout, store, run.environment()); err != nil {
 		return fmt.Errorf("loop: the dry-run plan the cycle's phases are keyed by: %w", err)
 	}
 	obligations, err := obligationsDigest(plan.Bytes())
@@ -526,8 +529,18 @@ func measureScorecard(checkout, store string, published func() error, run *runRe
 	}
 	key := strings.Join([]string{strings.TrimSpace(string(head)), absolute, obligations}, "|")
 	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, os.Stdout, published, run, func(environment []string, arguments ...string) error {
-		return validateTo(os.Stdout, checkout, store, environment, arguments...)
+		return start(os.Stdout, checkout, store, environment, arguments...)
 	})
+}
+
+// validateStart starts cmd/validate from checkout into store, as validateTo does.
+type validateStart func(output io.Writer, checkout, store string, environment []string, arguments ...string) error
+
+// fillCycle runs the background validations of the cycle checkout into store, under the cycle's credit and the run's
+// record, which keeps the digests of the files they bind, so a file the run hashed is not hashed again (SQA-525).
+func fillCycle(checkout, store string, run *runRecorder, start validateStart) error {
+	environment := append([]string{cycleCreditEnvironment(filepath.Dir(checkout))}, run.environment()...)
+	return start(os.Stdout, checkout, store, environment, "-run", "-background")
 }
 
 // measurePhases runs the cycle's phases for key, the preflight, the lanes,

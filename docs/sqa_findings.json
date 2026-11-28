@@ -40,20 +40,20 @@
     "head": "efa59bd5922f60635af122cf728e6e1830647355",
     "findings": {
       "SQA-524": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "cells-retry/reach"
         ],
         "answered": "e2c10fadb6c6",
-        "note": "Answered by the lead on 2026-11-28 at 3a7b3877d: valid from source, a phase that passes without measuring (a retry reaches its cells from the partial publication at its own commit, so the failed cell is selected by nothing and the cells phase is recorded passed). Not observed. Filed as cells-retry/reach, first: a commit's cells are reached from the newest record of an earlier commit, never its own, so a retry reaches the cells its first attempt did."
+        "note": "Answered by the lead on 2026-11-28 at 3a7b3877d: valid from source, a phase that passes without measuring (a retry reaches its cells from the partial publication at its own commit, so the failed cell is selected by nothing and the cells phase is recorded passed). Not observed. Filed as cells-retry/reach, first: a commit's cells are reached from the newest record of an earlier commit, never its own, so a retry reaches the cells its first attempt did. Implemented 2026-11-28 by cells-retry/reach (49deab372): validate reaches a run's cells from the newest record of another commit (reachedFrom), so a retry at the commit reaches the cells its first attempt did (TestARetryReachesItsCellsFromTheCommitBefore), for the review's recheck."
       },
       "SQA-525": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "hash-once/do"
         ],
         "answered": "5fa96c0f4365",
-        "note": "Answered by the lead on 2026-11-28 at 3a7b3877d: valid from source, a cost every full run pays (the dry run and the fill hash every model file again beside the preflight, 311 paths and 233.8 GB by size at 3a7b3877d). Filed as hash-once/do: both are given the run record's environment, as the phases are."
+        "note": "Answered by the lead on 2026-11-28 at 3a7b3877d: valid from source, a cost every full run pays (the dry run and the fill hash every model file again beside the preflight, 311 paths and 233.8 GB by size at 3a7b3877d). Filed as hash-once/do: both are given the run record's environment, as the phases are. Implemented 2026-11-28 by hash-once/do, the landing that carries this answer: measureScorecard and the fill start validate through one starter, and the dry run, each phase and the fill are each given the run record's environment (TestEveryValidateOfARunReadsItsRecord), for the review's recheck."
       }
     }
   },

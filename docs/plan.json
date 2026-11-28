@@ -1,23 +1,7 @@
 {
   "campaign": "MOSS in overgo does what the MOSS Ultra workflow does in ComfyUI, each section held to ComfyUI's recording",
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "hash-once",
-      "title": "A run's model files are hashed once: its dry run and its fill read the run's record of digests, as its phases do",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A run's model files are hashed once: its dry run and its fill read the run's record of digests, as its phases do",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestEveryValidateOfARunReadsItsRecord$'",
-          "files": [
-            "cmd/loop"
-          ],
-          "rationale": "Note: SQA-525 (P2), checked by the lead against cmd/loop/improve.go at 3a7b3877d: valid from source, a cost every full measurement run pays. A run keeps the digests of the model files its cells bind in its run record (OVERGO_MEASUREMENT_RUN), which a later binding in the run reads instead of hashing again (TestARunHashesEachModelFileOnce); but measureScorecard starts the dry run that keys the cycle with no recorder environment (validateTo(\u0026plan, checkout, store, nil)), and the background fill passes only the cycle credit, so each hashes every model file again beside the preflight: the run at 3a7b3877d recorded 311 paths, 233.8 GB by size. The change: the dry run and the fill are given the run recorder's environment, as the phases are, so an unchanged file is hashed once a run. First read measureScorecard, Fill and runRecorder.environment.\n\nCheck: TestEveryValidateOfARunReadsItsRecord, the cycle's dry run and its fill are given the run record's environment, as each phase is."
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "skill-source-form",
